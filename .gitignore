@@ -1,0 +1,59 @@
+# -----------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.*.example
+!.env.local.example
+
+# -----------------------------------------------------------------------
+# Backend — runtime artifacts
+# -----------------------------------------------------------------------
+backend/grantpilot.db
+backend/test_grantpilot.db
+backend/uploads/
+backend/.pytest_cache/
+backend/.ruff_cache/
+
+# -----------------------------------------------------------------------
+# Frontend
+# -----------------------------------------------------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.production
+
+# -----------------------------------------------------------------------
+# Editor / OS
+# -----------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------
+# Secrets / credentials
+# -----------------------------------------------------------------------
+*.pem
+*.key
+*.p12
+secrets/
+credentials.json
+service_account*.json

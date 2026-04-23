@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(pip install *)",
+      "Bash(PYTHONPATH=. python -m pytest tests/ -v)",
+      "Bash(python -c \"import fastapi; print\\('fastapi ok'\\)\")",
+      "Bash(python -c \"import pytest; print\\('pytest ok'\\)\")",
+      "Bash(python -m pip install pytest pytest-asyncio httpx python-multipart --target \"C:\\\\Python312\\\\Lib\\\\site-packages\")",
+      "Bash(python *)",
+      "Bash(PYTHONPATH=. python -m pytest tests/ -q)",
+      "Bash(PYTHONPATH=. uvicorn app.main:app --port 8000)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/projects/proj_stem_2026)",
+      "Bash(curl -s http://localhost:8000/projects/proj_stem_2026/analysis)",
+      "Bash(PYTHONPATH=. python -m uvicorn app.main:app --port 8000)",
+      "Bash(PYTHONPATH=. python -m alembic init alembic)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_document_parser.py -v)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git rebase *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}
