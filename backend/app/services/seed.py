@@ -6,6 +6,7 @@ without any manual API calls. Idempotent: safe to call multiple times.
 """
 from sqlalchemy.orm import Session
 
+from app.models.analysis import ReadinessReport
 from app.models.organization import Organization
 from app.models.project import Project
 from app.services import analysis_service
@@ -16,10 +17,14 @@ DEMO_PROJECT_ID = "proj_stem_2026"
 
 def seed_demo(db: Session) -> None:
     if db.get(Organization, DEMO_ORG_ID) is not None:
-        # DB already has demo data — still seed in-memory analysis so the
-        # analysis endpoints work after a server restart that finds existing rows.
-        if analysis_service.get_analysis(DEMO_PROJECT_ID) is None:
-            analysis_service.run_analysis(DEMO_PROJECT_ID)
+        # DB already has demo data — ensure ReadinessReport exists (e.g. after schema upgrades).
+        existing_report = (
+            db.query(ReadinessReport)
+            .filter(ReadinessReport.project_id == DEMO_PROJECT_ID)
+            .first()
+        )
+        if existing_report is None:
+            analysis_service.run_analysis(DEMO_PROJECT_ID, db)
         return
 
     org = Organization(
@@ -49,5 +54,5 @@ def seed_demo(db: Session) -> None:
     db.add(project)
     db.flush()
 
-    # Analysis results live in memory; Phase 4 will persist to ReadinessReport table.
-    analysis_service.run_analysis(DEMO_PROJECT_ID)
+    # Persist mock analysis results to ReadinessReport so GET /analysis works immediately.
+    analysis_service.run_analysis(DEMO_PROJECT_ID, db)

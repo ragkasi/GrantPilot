@@ -18,8 +18,7 @@ def analyze_project(
         raise HTTPException(status_code=404, detail="Project not found.")
 
     project_service.update_project_status(db, project_id, "analyzing")
-    # Phase 3: synchronous mock. Phase 4: real AI pipeline + DB persistence.
-    analysis_service.run_analysis(project_id)
+    analysis_service.run_analysis(project_id, db)
     project_service.update_project_status(db, project_id, "analyzed")
 
     return AnalyzeResponse(project_id=project_id, status="analyzed")
@@ -33,7 +32,7 @@ def get_analysis(
     if project_service.get_project(db, project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    report = analysis_service.get_analysis(project_id)
+    report = analysis_service.get_analysis(project_id, db)
     if report is None:
         raise HTTPException(
             status_code=404,
@@ -50,6 +49,6 @@ def get_report(
     if project_service.get_project(db, project_id) is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    report = analysis_service.get_analysis(project_id)
+    report = analysis_service.get_analysis(project_id, db)
     pdf_url = report.report_pdf_url if report else None
     return ReportResponse(project_id=project_id, report_pdf_url=pdf_url)

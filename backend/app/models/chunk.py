@@ -6,7 +6,7 @@ Phase 4 will add an `embedding` column (pgvector) for RAG retrieval.
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utcnow
@@ -24,7 +24,9 @@ class DocumentChunk(Base):
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
-    # embedding column added in Phase 4 (pgvector / JSON float list)
+    # JSON list[float] — populated by embedding_service after parsing.
+    # Phase 5: swap for a native pgvector column + HNSW index.
+    embedding_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

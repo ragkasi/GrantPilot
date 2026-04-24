@@ -15,6 +15,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import app.core.database as db_module
+
+# Import every model module so SQLAlchemy registers them all with Base.metadata
+# before any test calls create_all(). Missing imports cause NoReferencedTableError
+# on foreign-key resolution.
+from app.models import analysis, chunk, document, organization, project  # noqa: F401
 from app.models.base import Base
 
 
