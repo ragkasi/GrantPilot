@@ -271,6 +271,8 @@ def _upsert_report(
         existing.missing_items = missing_docs
         existing.risk_flags = risk_flags
         existing.draft_answers = draft_answers
+        # Clear stale PDF so the next download regenerates with fresh data
+        existing.report_pdf_url = None
         db.flush()
         return existing
 

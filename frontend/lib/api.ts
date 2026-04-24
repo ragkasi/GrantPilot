@@ -79,3 +79,11 @@ export async function getReport(
 ): Promise<{ project_id: string; report_pdf_url: string | null }> {
   return apiFetch(`/projects/${projectId}/report`);
 }
+
+/**
+ * Opens the PDF report download in a new browser tab.
+ * The backend generates the PDF on first call and caches it for subsequent calls.
+ */
+export function downloadReport(projectId: string): void {
+  window.open(`${BASE_URL}/projects/${projectId}/report/download`, "_blank");
+}

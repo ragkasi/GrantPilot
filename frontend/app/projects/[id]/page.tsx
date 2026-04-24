@@ -14,7 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ApiError, getAnalysis, getOrganization, getProject, runAnalysis } from "@/lib/api";
+import { ApiError, downloadReport, getAnalysis, getOrganization, getProject, runAnalysis } from "@/lib/api";
 import type { AnalysisResult, Organization, Project } from "@/types";
 import { ScoreRing } from "@/components/project/score-ring";
 import { RequirementsTable } from "@/components/project/requirements-table";
@@ -167,7 +167,10 @@ export default function ProjectPage() {
               </div>
             </div>
 
-            <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm">
+            <button
+              onClick={() => downloadReport(projectId)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
+            >
               <Download className="w-4 h-4" />
               Download Report
             </button>
