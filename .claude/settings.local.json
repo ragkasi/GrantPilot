@@ -28,7 +28,11 @@
       "Bash(git commit *)",
       "Bash(git checkout *)",
       "Bash(PYTHONPATH=. python -m pytest tests/test_pipeline.py -v)",
-      "Bash(PYTHONPATH=. python -m pytest tests/ -v --tb=short)"
+      "Bash(PYTHONPATH=. python -m pytest tests/ -v --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_report.py -v)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_report.py::TestGeneratePdf -v)",
+      "Bash(PYTHONPATH=. python -c \"from app.api.analysis import router; print\\('import ok'\\)\")",
+      "Bash(PYTHONPATH=. python -c \"from app.api.analysis import router; print\\('fastapi import ok'\\)\")"
     ]
   }
 }
