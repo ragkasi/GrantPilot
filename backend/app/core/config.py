@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""       # Optional: enables OpenAI embeddings over TF-IDF fallback
     database_url: str = ""
     upload_dir: str = "uploads"    # Relative to backend working directory
+    # Auth — set JWT_SECRET to a strong random string in production
+    jwt_secret: str = "dev-only-secret-change-in-production"
+    jwt_expire_days: int = 7
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

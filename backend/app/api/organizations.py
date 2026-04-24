@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
+from app.api.deps import require_org_access
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.organization import OrganizationCreate, OrganizationResponse, OrganizationSummary
 from app.services import organization_service
 
@@ -12,8 +15,9 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 def create_organization(
     body: OrganizationCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> OrganizationSummary:
-    record = organization_service.create_organization(db, body)
+    record = organization_service.create_organization(db, body, user_id=current_user.id)
     return OrganizationSummary(id=record.id, name=record.name, created_at=record.created_at)
 
 
@@ -21,10 +25,9 @@ def create_organization(
 def get_organization(
     org_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> OrganizationResponse:
-    record = organization_service.get_organization(db, org_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Organization not found.")
+    record = require_org_access(db, org_id, current_user)
     return OrganizationResponse(
         id=record.id,
         name=record.name,

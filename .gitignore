@@ -16,17 +16,25 @@ venv/
 env/
 .env
 .env.*
+!.env.example
 !.env.*.example
 !.env.local.example
 
 # -----------------------------------------------------------------------
-# Backend — runtime artifacts
+# Backend — runtime artifacts and local config
 # -----------------------------------------------------------------------
 backend/grantpilot.db
 backend/test_grantpilot.db
 backend/uploads/
 backend/.pytest_cache/
 backend/.ruff_cache/
+backend/.env
+
+# -----------------------------------------------------------------------
+# MCP — local config
+# -----------------------------------------------------------------------
+mcp/grant-context-mcp/.env
+mcp/grant-context-mcp/.pytest_cache/
 
 # -----------------------------------------------------------------------
 # Frontend

@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
+from app.api.deps import require_project_access
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.document import DocumentResponse, DocumentSummary, DocumentType
-from app.services import document_service, project_service
+from app.services import document_service
 
 router = APIRouter(tags=["documents"])
 
@@ -17,9 +20,9 @@ async def upload_document(
     document_type: DocumentType = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentSummary:
-    if project_service.get_project(db, project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
+    require_project_access(db, project_id, current_user)
 
     filename = file.filename or "upload"
     valid, err = document_service.validate_filename(filename)
@@ -50,9 +53,9 @@ async def upload_document(
 def list_project_documents(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[DocumentResponse]:
-    if project_service.get_project(db, project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
+    require_project_access(db, project_id, current_user)
     records = document_service.list_documents_for_project(db, project_id)
     return [
         DocumentResponse(

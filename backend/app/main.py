@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analysis, documents, organizations, projects
+from app.api import analysis, auth, documents, organizations, projects
 from app.core.config import settings
 from app.core.database import create_all_tables, get_db_context
 from app.services import seed as seed_service
@@ -33,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(organizations.router)
 app.include_router(projects.router)
 app.include_router(documents.router)

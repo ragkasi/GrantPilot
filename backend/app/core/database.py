@@ -24,7 +24,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def create_all_tables() -> None:
     """Creates all tables from the current metadata. Used on startup and in tests."""
     from app.models import base  # noqa: F401 — registers all models via imports below
-    from app.models import analysis, chunk, document, organization, project  # noqa: F401
+    from app.models import analysis, chunk, document, organization, project, user  # noqa: F401
 
     base.Base.metadata.create_all(bind=engine)
 

@@ -5,6 +5,7 @@ Each test gets:
   - A fresh SQLite file DB (tmp_path/test.db) with all tables created.
   - A DB session override via FastAPI dependency injection.
   - An isolated upload directory (tmp_path/uploads).
+  - An authenticated client with a test user's JWT.
 
 The engine and SessionLocal in app.core.database are monkey-patched so that
 the lifespan's create_all_tables() and seed_demo() both use the test DB.
@@ -17,9 +18,8 @@ from sqlalchemy.orm import sessionmaker
 import app.core.database as db_module
 
 # Import every model module so SQLAlchemy registers them all with Base.metadata
-# before any test calls create_all(). Missing imports cause NoReferencedTableError
-# on foreign-key resolution.
-from app.models import analysis, chunk, document, organization, project  # noqa: F401
+# before any test calls create_all().
+from app.models import analysis, chunk, document, organization, project, user  # noqa: F401
 from app.models.base import Base
 
 
@@ -40,7 +40,6 @@ def test_engine(tmp_path):
 def db_session(test_engine, monkeypatch):
     """Patches the module-level engine + SessionLocal so all app code uses the test DB."""
     TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
     monkeypatch.setattr(db_module, "engine", test_engine)
     monkeypatch.setattr(db_module, "SessionLocal", TestSession)
 
@@ -53,9 +52,10 @@ def db_session(test_engine, monkeypatch):
 @pytest.fixture()
 def client(db_session, tmp_path, monkeypatch):
     """
-    TestClient with:
+    Authenticated TestClient:
       - DB dependency overridden to the test session
       - upload_dir pointed at tmp_path/uploads
+      - A test user is registered and their JWT is attached to all requests
     """
     from app.core.config import settings
     from app.core.database import get_db
@@ -67,13 +67,20 @@ def client(db_session, tmp_path, monkeypatch):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
     with TestClient(app, raise_server_exceptions=True) as c:
+        # Register + login a test user, attach token to all future requests
+        reg = c.post("/auth/register", json={"email": "test@example.com", "password": "testpassword123"})
+        assert reg.status_code == 201, reg.text
+        token = reg.json()["access_token"]
+        c.headers.update({"Authorization": f"Bearer {token}"})
         yield c
+
     app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
-# Convenience fixtures that create common resources
+# Convenience fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()

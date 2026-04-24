@@ -4,9 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
+from app.api.deps import require_project_access
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.analysis import AnalysisResponse, AnalyzeResponse, ReportResponse
-from app.services import analysis_service, project_service, report_generator, storage_service
+from app.services import analysis_service, report_generator, storage_service
 
 router = APIRouter(tags=["analysis"])
 
@@ -15,15 +18,13 @@ router = APIRouter(tags=["analysis"])
 def analyze_project(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> AnalyzeResponse:
-    record = project_service.get_project(db, project_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
-
+    from app.services import project_service
+    require_project_access(db, project_id, current_user)
     project_service.update_project_status(db, project_id, "analyzing")
     analysis_service.run_analysis(project_id, db)
     project_service.update_project_status(db, project_id, "analyzed")
-
     return AnalyzeResponse(project_id=project_id, status="analyzed")
 
 
@@ -31,10 +32,9 @@ def analyze_project(
 def get_analysis(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> AnalysisResponse:
-    if project_service.get_project(db, project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
-
+    require_project_access(db, project_id, current_user)
     report = analysis_service.get_analysis(project_id, db)
     if report is None:
         raise HTTPException(
@@ -48,15 +48,11 @@ def get_analysis(
 def get_report_metadata(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ReportResponse:
-    """Returns report metadata including the download URL once generated."""
-    if project_service.get_project(db, project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
-
+    require_project_access(db, project_id, current_user)
     report = analysis_service.get_analysis(project_id, db)
     pdf_url = report.report_pdf_url if report else None
-
-    # Build a stable download URL so the frontend can use it directly
     download_url = f"/projects/{project_id}/report/download" if pdf_url else None
     return ReportResponse(project_id=project_id, report_pdf_url=download_url)
 
@@ -65,11 +61,9 @@ def get_report_metadata(
 def download_report(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> FileResponse:
-    """Generates the PDF if needed, then streams it as a download."""
-    if project_service.get_project(db, project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
-
+    require_project_access(db, project_id, current_user)
     report = analysis_service.get_analysis(project_id, db)
     if report is None:
         raise HTTPException(
@@ -77,11 +71,10 @@ def download_report(
             detail="No analysis found. Run POST /projects/{project_id}/analyze first.",
         )
 
-    # Lazy generation: generate once, reuse until re-analysis clears the URL
     if report.report_pdf_url:
         pdf_path = storage_service.get_file_path(report.report_pdf_url)
         if not pdf_path.exists():
-            report.report_pdf_url = None  # stale path — regenerate below
+            report.report_pdf_url = None
 
     if not report.report_pdf_url:
         try:

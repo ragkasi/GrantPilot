@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
+from app.api.deps import require_org_access, require_project_access
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectSummary
-from app.services import organization_service, project_service
+from app.services import project_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -12,9 +15,10 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 def create_project(
     body: ProjectCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ProjectSummary:
-    if organization_service.get_organization(db, body.organization_id) is None:
-        raise HTTPException(status_code=404, detail="Organization not found.")
+    # Verify org ownership before creating the project under it
+    require_org_access(db, body.organization_id, current_user)
     record = project_service.create_project(db, body)
     return ProjectSummary(
         id=record.id,
@@ -28,10 +32,9 @@ def create_project(
 def get_project(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ProjectResponse:
-    record = project_service.get_project(db, project_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
+    record = require_project_access(db, project_id, current_user)
     return ProjectResponse(
         id=record.id,
         organization_id=record.organization_id,
