@@ -35,6 +35,18 @@ def list_projects_for_org(db: Session, org_id: str) -> list[Project]:
     return db.query(Project).filter(Project.organization_id == org_id).all()
 
 
+def list_projects_for_user(db: Session, user_id: str) -> list[Project]:
+    """All projects across all organizations owned by the user."""
+    from app.models.organization import Organization
+    return (
+        db.query(Project)
+        .join(Organization, Project.organization_id == Organization.id)
+        .filter(Organization.user_id == user_id)
+        .order_by(Project.created_at.desc())
+        .all()
+    )
+
+
 def update_project_status(db: Session, project_id: str, status: str) -> Project | None:
     project = db.get(Project, project_id)
     if project is None:

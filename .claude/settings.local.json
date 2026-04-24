@@ -34,7 +34,8 @@
       "Bash(PYTHONPATH=. python -c \"from app.api.analysis import router; print\\('import ok'\\)\")",
       "Bash(PYTHONPATH=. python -c \"from app.api.analysis import router; print\\('fastapi import ok'\\)\")",
       "Bash(PYTHONPATH=. python -m pytest tests/test_auth.py -v --tb=short)",
-      "Bash(PYTHONPATH=. python -m pytest tests/ -q --tb=short)"
+      "Bash(PYTHONPATH=. python -m pytest tests/ -q --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_dashboard.py -v --tb=short)"
     ]
   }
 }

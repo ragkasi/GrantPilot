@@ -4,7 +4,13 @@
  * Bearer token is attached automatically when present in localStorage.
  */
 
-import type { AnalysisResult, Organization, Project } from "@/types";
+import type {
+  AnalysisResult,
+  Organization,
+  OrganizationCreate,
+  Project,
+  ProjectCreate,
+} from "@/types";
 import { clearToken, getToken } from "@/lib/auth";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -89,13 +95,39 @@ export async function getMe(): Promise<{ id: string; email: string; created_at: 
 // Organizations
 // ---------------------------------------------------------------------------
 
+export async function listOrganizations(): Promise<Organization[]> {
+  return apiFetch<Organization[]>("/organizations");
+}
+
+export async function createOrganization(data: OrganizationCreate): Promise<{ id: string; name: string; created_at: string }> {
+  return apiFetch("/organizations", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getOrganization(id: string): Promise<Organization> {
   return apiFetch<Organization>(`/organizations/${id}`);
+}
+
+export async function listOrgProjects(orgId: string): Promise<Project[]> {
+  return apiFetch<Project[]>(`/organizations/${orgId}/projects`);
 }
 
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
+
+export async function listProjects(): Promise<Project[]> {
+  return apiFetch<Project[]>("/projects");
+}
+
+export async function createProject(data: ProjectCreate): Promise<{ id: string; organization_id: string; grant_name: string; status: string }> {
+  return apiFetch("/projects", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
 
 export async function getProject(id: string): Promise<Project> {
   return apiFetch<Project>(`/projects/${id}`);

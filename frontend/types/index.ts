@@ -67,6 +67,24 @@ export interface Project {
   updated_at: string;
 }
 
+export interface OrganizationCreate {
+  name: string;
+  mission: string;
+  location: string;
+  nonprofit_type: string;
+  annual_budget: number;
+  population_served: string;
+}
+
+export interface ProjectCreate {
+  organization_id: string;
+  grant_name: string;
+  grant_source_url?: string | null;
+  funder_name?: string | null;
+  grant_amount?: string | null;
+  deadline?: string | null;
+}
+
 /** Returned by GET /projects/{id}/analysis */
 export interface AnalysisResult {
   project_id: string;
