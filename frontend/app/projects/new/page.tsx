@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FolderOpen, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { ApiError, createProject, listOrganizations } from "@/lib/api";
 import type { Organization } from "@/types";
 
-export default function NewProjectPage() {
+// useSearchParams requires a Suspense boundary in Next.js 15.
+// The default export wraps this inner component in <Suspense>.
+function NewProjectForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedOrgId = searchParams.get("org_id") ?? "";
@@ -262,5 +264,13 @@ export default function NewProjectPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewProjectPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-gray-400">Loading…</div>}>
+      <NewProjectForm />
+    </Suspense>
   );
 }
