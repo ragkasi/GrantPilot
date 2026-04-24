@@ -67,6 +67,36 @@ export interface Project {
   updated_at: string;
 }
 
+export type DocumentType =
+  | "mission_statement"
+  | "budget"
+  | "annual_report"
+  | "program_description"
+  | "irs_letter"
+  | "past_application"
+  | "grant_opportunity"
+  | "other";
+
+export type DocumentStatus = "uploaded" | "stored" | "parsed" | "parse_failed";
+
+export interface Document {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  filename: string;
+  document_type: DocumentType;
+  status: DocumentStatus;
+  page_count: number | null;
+  created_at: string;
+}
+
+export interface DocumentSummary {
+  id: string;
+  filename: string;
+  document_type: DocumentType;
+  status: DocumentStatus;
+}
+
 export interface OrganizationCreate {
   name: string;
   mission: string;

@@ -35,7 +35,12 @@
       "Bash(PYTHONPATH=. python -c \"from app.api.analysis import router; print\\('fastapi import ok'\\)\")",
       "Bash(PYTHONPATH=. python -m pytest tests/test_auth.py -v --tb=short)",
       "Bash(PYTHONPATH=. python -m pytest tests/ -q --tb=short)",
-      "Bash(PYTHONPATH=. python -m pytest tests/test_dashboard.py -v --tb=short)"
+      "Bash(PYTHONPATH=. python -m pytest tests/test_dashboard.py -v --tb=short)",
+      "Bash(netstat -ano)",
+      "Bash(PYTHONPATH=. python -m uvicorn app.main:app --port 8000 --reload)",
+      "Bash(taskkill /PID 31860 /F)",
+      "PowerShell(Stop-Process *)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_upload_analyze_flow.py -v --tb=short)"
     ]
   }
 }

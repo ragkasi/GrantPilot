@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,23 +12,74 @@ import {
   Building2,
   AlertCircle,
   Loader2,
+  Upload,
+  FileText,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ApiError, downloadReport, getAnalysis, getOrganization, getProject, runAnalysis } from "@/lib/api";
-import type { AnalysisResult, Organization, Project } from "@/types";
+import {
+  ApiError,
+  downloadReport,
+  getAnalysis,
+  getOrganization,
+  getProject,
+  listDocuments,
+  runAnalysis,
+  uploadDocument,
+} from "@/lib/api";
+import type { AnalysisResult, Document, DocumentType, Organization, Project } from "@/types";
 import { ScoreRing } from "@/components/project/score-ring";
 import { RequirementsTable } from "@/components/project/requirements-table";
 import { DraftAnswersPanel } from "@/components/project/draft-answers-panel";
 import { RiskPanel } from "@/components/project/risk-panel";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const TABS = ["Requirements", "Draft Answers", "Missing Docs & Risks"] as const;
 type Tab = (typeof TABS)[number];
+
+const DOC_TYPES: { value: DocumentType; label: string }[] = [
+  { value: "mission_statement", label: "Mission Statement" },
+  { value: "program_description", label: "Program Description" },
+  { value: "annual_report", label: "Annual Report" },
+  { value: "budget", label: "Annual Budget" },
+  { value: "irs_letter", label: "IRS Determination Letter" },
+  { value: "grant_opportunity", label: "Grant Opportunity Document" },
+  { value: "past_application", label: "Past Application" },
+  { value: "other", label: "Other" },
+];
+
+const STATUS_STYLE: Record<string, { label: string; classes: string }> = {
+  parsed: { label: "Parsed", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  stored: { label: "Stored", classes: "bg-gray-100 text-gray-600 border-gray-200" },
+  uploaded: { label: "Uploading", classes: "bg-blue-50 text-blue-600 border-blue-200" },
+  parse_failed: { label: "Parse Failed", classes: "bg-red-50 text-red-600 border-red-200" },
+};
+
+const ANALYZE_STEPS = [
+  "Parsing uploaded documents",
+  "Extracting grant requirements",
+  "Matching evidence to requirements",
+  "Scoring eligibility and readiness",
+];
+
+// ---------------------------------------------------------------------------
+// Page state
+// ---------------------------------------------------------------------------
 
 type PageState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
-  | { phase: "needs_analysis"; project: Project; org: Organization }
-  | { phase: "ready"; project: Project; org: Organization; analysis: AnalysisResult };
+  | { phase: "upload"; project: Project; org: Organization; documents: Document[] }
+  | { phase: "analyzing"; project: Project; org: Organization; documents: Document[] }
+  | { phase: "ready"; project: Project; org: Organization; analysis: AnalysisResult; documents: Document[] };
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function ProjectPage() {
   const params = useParams();
@@ -36,74 +87,268 @@ export default function ProjectPage() {
 
   const [state, setState] = useState<PageState>({ phase: "loading" });
   const [activeTab, setActiveTab] = useState<Tab>("Requirements");
-  const [analyzing, setAnalyzing] = useState(false);
+
+  // Upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState<DocumentType>("mission_statement");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function loadProject(cancelled?: { value: boolean }) {
+    try {
+      const project = await getProject(projectId);
+      const [org, documents] = await Promise.all([
+        getOrganization(project.organization_id),
+        listDocuments(projectId),
+      ]);
+
+      if (cancelled?.value) return;
+
+      if (project.status === "analyzed" || project.status === "report_generated") {
+        const analysis = await getAnalysis(projectId);
+        if (!cancelled?.value)
+          setState({ phase: "ready", project, org, analysis, documents });
+      } else {
+        setState({ phase: "upload", project, org, documents });
+      }
+    } catch (err) {
+      if (!cancelled?.value) {
+        const message =
+          err instanceof ApiError
+            ? `${err.message} (${err.status})`
+            : "Failed to load project data.";
+        setState({ phase: "error", message });
+      }
+    }
+  }
 
   useEffect(() => {
     if (!projectId) return;
-
-    let cancelled = false;
-
-    async function load() {
-      setState({ phase: "loading" });
-      try {
-        const project = await getProject(projectId);
-        const org = await getOrganization(project.organization_id);
-
-        if (project.status !== "analyzed" && project.status !== "report_generated") {
-          if (!cancelled) setState({ phase: "needs_analysis", project, org });
-          return;
-        }
-
-        const analysis = await getAnalysis(projectId);
-        if (!cancelled) setState({ phase: "ready", project, org, analysis });
-      } catch (err) {
-        if (!cancelled) {
-          const message =
-            err instanceof ApiError
-              ? `${err.message} (${err.status})`
-              : "Failed to load project data.";
-          setState({ phase: "error", message });
-        }
-      }
-    }
-
-    load();
-    return () => { cancelled = true; };
+    const cancelled = { value: false };
+    setState({ phase: "loading" });
+    loadProject(cancelled);
+    return () => { cancelled.value = true; };
   }, [projectId]);
 
+  async function handleUpload() {
+    if (!selectedFile || state.phase !== "upload") return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await uploadDocument(
+        projectId,
+        state.project.organization_id,
+        docType,
+        selectedFile,
+      );
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      // Refresh documents list
+      const freshDocs = await listDocuments(projectId);
+      setState((prev) =>
+        prev.phase === "upload" ? { ...prev, documents: freshDocs } : prev,
+      );
+    } catch (err) {
+      setUploadError(
+        err instanceof ApiError ? err.message : "Upload failed. Please try again.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleRunAnalysis() {
-    if (state.phase !== "needs_analysis") return;
-    setAnalyzing(true);
+    if (state.phase !== "upload") return;
+    setState((prev) =>
+      prev.phase === "upload"
+        ? { phase: "analyzing", project: prev.project, org: prev.org, documents: prev.documents }
+        : prev,
+    );
     try {
       await runAnalysis(projectId);
-      const [updatedProject, analysis] = await Promise.all([
-        getProject(projectId),
-        getAnalysis(projectId),
-      ]);
-      setState({ phase: "ready", project: updatedProject, org: state.org, analysis });
+      await loadProject();
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Analysis failed. Please try again.";
       setState({ phase: "error", message });
-    } finally {
-      setAnalyzing(false);
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   if (state.phase === "loading") return <LoadingSkeleton />;
   if (state.phase === "error") return <ErrorState message={state.message} />;
-  if (state.phase === "needs_analysis") {
+  if (state.phase === "analyzing") return <AnalyzingState project={state.project} org={state.org} />;
+
+  if (state.phase === "upload") {
+    const { project, org, documents } = state;
     return (
-      <NeedsAnalysisState
-        project={state.project}
-        org={state.org}
-        analyzing={analyzing}
-        onRunAnalysis={handleRunAnalysis}
-      />
+      <div className="min-h-screen bg-gray-50">
+        <PageHeader project={project} org={org} showDownload={false} />
+        <div className="px-8 py-6 max-w-4xl mx-auto space-y-5">
+          {/* Upload card */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Upload className="w-4 h-4 text-indigo-500" />
+                Upload Documents
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upload nonprofit documents and the grant opportunity. PDF, DOCX, or TXT &middot; max 20 MB.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {uploadError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {uploadError}
+                </p>
+              )}
+
+              <div className="flex gap-3 items-end">
+                {/* Doc type */}
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Document Type
+                  </label>
+                  <select
+                    value={docType}
+                    onChange={(e) => setDocType(e.target.value as DocumentType)}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    {DOC_TYPES.map((dt) => (
+                      <option key={dt.value} value={dt.value}>
+                        {dt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* File picker */}
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    File
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setSelectedFile(f);
+                        setUploadError(null);
+                      }}
+                      className="block w-full text-sm text-gray-600
+                        file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-gray-300
+                        file:text-xs file:font-medium file:bg-white file:text-gray-700
+                        hover:file:bg-gray-50 file:cursor-pointer cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload button */}
+                <button
+                  onClick={handleUpload}
+                  disabled={!selectedFile || uploading}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+                >
+                  {uploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploading ? "Uploading…" : "Upload"}
+                </button>
+              </div>
+
+              {/* Document list */}
+              {documents.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Uploaded Documents
+                  </p>
+                  <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {documents.map((doc) => {
+                      const s = STATUS_STYLE[doc.status] ?? STATUS_STYLE.stored;
+                      const typeLabel =
+                        DOC_TYPES.find((dt) => dt.value === doc.document_type)?.label ??
+                        doc.document_type;
+                      return (
+                        <div key={doc.id} className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {doc.filename}
+                              </p>
+                              <p className="text-xs text-gray-400">{typeLabel}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0 ml-3">
+                            {doc.page_count != null && (
+                              <span className="text-xs text-gray-400">{doc.page_count}p</span>
+                            )}
+                            <span
+                              className={cn(
+                                "text-xs font-medium border px-2 py-0.5 rounded-full",
+                                s.classes,
+                              )}
+                            >
+                              {s.label}
+                            </span>
+                            {doc.status === "parse_failed" && (
+                              <XCircle className="w-4 h-4 text-red-400" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Run analysis card */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">Run Analysis</h2>
+                <p className="text-sm text-gray-500">
+                  {documents.length === 0
+                    ? "Upload at least one document to begin analysis."
+                    : `${documents.length} document${documents.length !== 1 ? "s" : ""} uploaded. Analysis will extract grant requirements and match evidence.`}
+                </p>
+                {!documents.some((d) => d.document_type === "grant_opportunity") &&
+                  documents.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Upload a Grant Opportunity Document for the most accurate analysis.
+                    </p>
+                  )}
+              </div>
+              <button
+                onClick={handleRunAnalysis}
+                disabled={documents.length === 0}
+                className="shrink-0 ml-6 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Run Analysis
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  const { project, org, analysis } = state;
+  // ---------------------------------------------------------------------------
+  // Ready state (analysis complete)
+  // ---------------------------------------------------------------------------
+  const { project, org, analysis, documents } = state;
   const {
     eligibility_score,
     readiness_score,
@@ -120,63 +365,7 @@ export default function ProjectPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Page header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-8 pt-5 pb-0 max-w-7xl mx-auto">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Dashboard
-          </Link>
-
-          <div className="flex items-start justify-between pb-5">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Building2 className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500">{org.name}</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">{project.grant_name}</h1>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5">
-                {project.funder_name && (
-                  <span className="text-sm text-gray-500">{project.funder_name}</span>
-                )}
-                {project.deadline && (
-                  <>
-                    <span className="text-gray-300">·</span>
-                    <span className="flex items-center gap-1 text-sm text-gray-500">
-                      <Clock className="w-3.5 h-3.5" />
-                      Due {project.deadline}
-                    </span>
-                  </>
-                )}
-                {project.grant_amount && (
-                  <>
-                    <span className="text-gray-300">·</span>
-                    <span className="flex items-center gap-1 text-sm text-gray-500">
-                      <DollarSign className="w-3.5 h-3.5" />
-                      {project.grant_amount}
-                    </span>
-                  </>
-                )}
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Analyzed
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => downloadReport(projectId)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Download Report
-            </button>
-          </div>
-        </div>
-      </div>
+      <PageHeader project={project} org={org} showDownload onDownload={() => downloadReport(projectId)} />
 
       <div className="px-8 py-6 max-w-7xl mx-auto">
         {/* Score summary */}
@@ -184,11 +373,9 @@ export default function ProjectPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center">
             <ScoreRing score={eligibility_score} label="Eligibility Score" color="indigo" />
           </div>
-
           <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center">
             <ScoreRing score={readiness_score} label="Readiness Score" color="violet" />
           </div>
-
           <div className="col-span-2 bg-white border border-gray-200 rounded-xl p-5 grid grid-cols-2 gap-5">
             <StatBlock
               label="Requirements Met"
@@ -217,8 +404,8 @@ export default function ProjectPage() {
           </div>
         </div>
 
-        {/* Tabs + content */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {/* Tabs */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
           <div className="flex border-b border-gray-200">
             {TABS.map((tab) => (
               <button
@@ -240,7 +427,6 @@ export default function ProjectPage() {
               </button>
             ))}
           </div>
-
           {activeTab === "Requirements" && <RequirementsTable requirements={requirements} />}
           {activeTab === "Draft Answers" && <DraftAnswersPanel answers={draft_answers} />}
           {activeTab === "Missing Docs & Risks" && (
@@ -248,23 +434,51 @@ export default function ProjectPage() {
           )}
         </div>
 
+        {/* Uploaded documents (collapsed summary) */}
+        {documents.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 mb-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Analyzed Documents ({documents.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {documents.map((doc) => {
+                const s = STATUS_STYLE[doc.status] ?? STATUS_STYLE.stored;
+                return (
+                  <span
+                    key={doc.id}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs font-medium border px-2.5 py-1 rounded-full",
+                      s.classes,
+                    )}
+                  >
+                    <FileText className="w-3 h-3" />
+                    {doc.filename}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Bottom action bar */}
-        <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 flex items-center justify-between">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-900">
               Ready to strengthen your application?
             </p>
             <p className="text-sm text-indigo-700 mt-0.5">
-              Upload the {requiredMissingCount} missing required documents to improve your readiness
-              score.
+              Upload the {requiredMissingCount} missing required documents to improve your readiness score.
             </p>
           </div>
-          <Link
-            href="/projects/new"
+          <button
+            onClick={async () => {
+              // Reset to upload phase to allow adding more documents
+              setState({ phase: "upload", project, org, documents });
+            }}
             className="shrink-0 px-4 py-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors"
           >
-            Upload Documents
-          </Link>
+            Upload More Documents
+          </button>
         </div>
       </div>
     </div>
@@ -272,8 +486,120 @@ export default function ProjectPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-states
+// Sub-components
 // ---------------------------------------------------------------------------
+
+function PageHeader({
+  project,
+  org,
+  showDownload,
+  onDownload,
+}: {
+  project: Project;
+  org: Organization;
+  showDownload: boolean;
+  onDownload?: () => void;
+}) {
+  const statusBadge =
+    project.status === "analyzed" || project.status === "report_generated"
+      ? { label: "Analyzed", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" }
+      : project.status === "analyzing"
+      ? { label: "Analyzing…", classes: "bg-indigo-50 text-indigo-700 border-indigo-200" }
+      : { label: "Draft", classes: "bg-gray-100 text-gray-500 border-gray-200" };
+
+  return (
+    <div className="bg-white border-b border-gray-200">
+      <div className="px-8 pt-5 pb-0 max-w-7xl mx-auto">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-4 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Dashboard
+        </Link>
+        <div className="flex items-start justify-between pb-5">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Building2 className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-500">{org.name}</span>
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900">{project.grant_name}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5">
+              {project.funder_name && (
+                <span className="text-sm text-gray-500">{project.funder_name}</span>
+              )}
+              {project.deadline && (
+                <>
+                  <span className="text-gray-300">·</span>
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <Clock className="w-3.5 h-3.5" />
+                    Due {project.deadline}
+                  </span>
+                </>
+              )}
+              {project.grant_amount && (
+                <>
+                  <span className="text-gray-300">·</span>
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <DollarSign className="w-3.5 h-3.5" />
+                    {project.grant_amount}
+                  </span>
+                </>
+              )}
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-xs font-medium border px-2.5 py-1 rounded-full",
+                  statusBadge.classes,
+                )}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                {statusBadge.label}
+              </span>
+            </div>
+          </div>
+          {showDownload && onDownload && (
+            <button
+              onClick={onDownload}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Download Report
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyzingState({ project, org }: { project: Project; org: Organization }) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader project={{ ...project, status: "analyzing" }} org={org} showDownload={false} />
+      <div className="px-8 py-12 max-w-4xl mx-auto flex items-center justify-center">
+        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center w-full max-w-md">
+          <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Analyzing grant fit…</h2>
+          <p className="text-sm text-gray-500 mb-8">
+            Extracting requirements, matching evidence, scoring readiness.
+          </p>
+          <div className="space-y-3 text-left">
+            {ANALYZE_STEPS.map((step, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm text-gray-500">
+                <div className="w-5 h-5 border border-indigo-300 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                </div>
+                {step}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LoadingSkeleton() {
   return (
@@ -313,68 +639,6 @@ function ErrorState({ message }: { message: string }) {
     </div>
   );
 }
-
-function NeedsAnalysisState({
-  project,
-  org,
-  analyzing,
-  onRunAnalysis,
-}: {
-  project: Project;
-  org: Organization;
-  analyzing: boolean;
-  onRunAnalysis: () => void;
-}) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-8 pt-5 pb-5 max-w-7xl mx-auto">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Dashboard
-        </Link>
-        <div className="flex items-center gap-2 mb-1">
-          <Building2 className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-500">{org.name}</span>
-        </div>
-        <h1 className="text-xl font-semibold text-gray-900">{project.grant_name}</h1>
-      </div>
-
-      <div className="px-8 py-12 max-w-7xl mx-auto flex items-center justify-center">
-        <div className="max-w-sm w-full bg-white border border-gray-200 rounded-xl p-8 text-center">
-          <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-6 h-6 text-indigo-600" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Ready to analyze</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Upload your documents then run analysis to see eligibility scores, evidence matches, and
-            draft answers.
-          </p>
-          <button
-            onClick={onRunAnalysis}
-            disabled={analyzing}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-          >
-            {analyzing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Analyzing…
-              </>
-            ) : (
-              "Run Analysis"
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared
-// ---------------------------------------------------------------------------
 
 function StatBlock({
   label,

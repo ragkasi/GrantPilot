@@ -6,6 +6,8 @@
 
 import type {
   AnalysisResult,
+  Document,
+  DocumentSummary,
   Organization,
   OrganizationCreate,
   Project,
@@ -131,6 +133,53 @@ export async function createProject(data: ProjectCreate): Promise<{ id: string; 
 
 export async function getProject(id: string): Promise<Project> {
   return apiFetch<Project>(`/projects/${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Documents
+// ---------------------------------------------------------------------------
+
+export async function listDocuments(projectId: string): Promise<Document[]> {
+  return apiFetch<Document[]>(`/projects/${projectId}/documents`);
+}
+
+/**
+ * Uploads a document using multipart/form-data.
+ * Does NOT set Content-Type — the browser sets it with the multipart boundary.
+ */
+export async function uploadDocument(
+  projectId: string,
+  organizationId: string,
+  documentType: string,
+  file: File,
+): Promise<DocumentSummary> {
+  const form = new FormData();
+  form.append("organization_id", organizationId);
+  form.append("project_id", projectId);
+  form.append("document_type", documentType);
+  form.append("file", file);
+
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/documents/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<DocumentSummary>;
 }
 
 // ---------------------------------------------------------------------------
