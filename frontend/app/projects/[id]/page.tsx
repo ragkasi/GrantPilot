@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import {
   ApiError,
   deleteDocument,
+  deleteProject,
   downloadReport,
   getAnalysis,
   getOrganization,
@@ -32,6 +33,7 @@ import {
   updateProject,
   uploadDocument,
 } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import type {
   AnalysisResult,
   Document,
@@ -94,10 +96,18 @@ type PageState =
 
 export default function ProjectPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = typeof params.id === "string" ? params.id : (params.id?.[0] ?? "");
 
   const [state, setState] = useState<PageState>({ phase: "loading" });
   const [activeTab, setActiveTab] = useState<Tab>("Requirements");
+
+  // Dynamic title — updated once project name is known
+  const projectTitle =
+    state.phase === "ready" || state.phase === "upload" || state.phase === "analyzing"
+      ? state.project.grant_name
+      : "";
+  useDocumentTitle(projectTitle || "Project");
 
   // Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -117,6 +127,10 @@ export default function ProjectPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  // Project delete state
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function loadProject(cancelled?: { value: boolean }) {
     try {
@@ -247,6 +261,25 @@ export default function ProjectPage() {
     }
   }
 
+  async function handleDeleteProject() {
+    if (!deleteConfirming) {
+      setDeleteConfirming(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteProject(projectId);
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setDeleting(false);
+      setDeleteConfirming(false);
+      // Show error in the error state
+      const message = err instanceof ApiError ? err.message : "Delete failed. Please try again.";
+      setState({ phase: "error", message });
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Document list (shared between upload + ready states)
   // ---------------------------------------------------------------------------
@@ -332,6 +365,10 @@ export default function ProjectPage() {
           showDownload={false}
           onEdit={() => setIsEditing(!isEditing)}
           isEditing={isEditing}
+          onDelete={handleDeleteProject}
+          deleteConfirming={deleteConfirming}
+          deleting={deleting}
+          onCancelDelete={() => setDeleteConfirming(false)}
         />
 
         {/* Inline edit form */}
@@ -466,6 +503,10 @@ export default function ProjectPage() {
         downloadError={downloadError}
         onEdit={() => setIsEditing(!isEditing)}
         isEditing={isEditing}
+        onDelete={handleDeleteProject}
+        deleteConfirming={deleteConfirming}
+        deleting={deleting}
+        onCancelDelete={() => setDeleteConfirming(false)}
       />
 
       {isEditing && (
@@ -676,7 +717,8 @@ function EditForm({
 // ---------------------------------------------------------------------------
 
 function PageHeader({
-  project, org, showDownload, onDownload, downloading, downloadError, onEdit, isEditing,
+  project, org, showDownload, onDownload, downloading, downloadError,
+  onEdit, isEditing, onDelete, deleteConfirming, deleting, onCancelDelete,
 }: {
   project: Project;
   org: Organization;
@@ -686,6 +728,10 @@ function PageHeader({
   downloadError?: string | null;
   onEdit?: () => void;
   isEditing?: boolean;
+  onDelete?: () => void;
+  deleteConfirming?: boolean;
+  deleting?: boolean;
+  onCancelDelete?: () => void;
 }) {
   const statusBadge =
     project.status === "analyzed" || project.status === "report_generated"
@@ -745,16 +791,43 @@ function PageHeader({
               <p className="text-xs text-red-600 mt-2">{downloadError}</p>
             )}
           </div>
-          {showDownload && onDownload && (
-            <button
-              onClick={onDownload}
-              disabled={downloading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 transition-colors shadow-sm"
-            >
-              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {downloading ? "Generating…" : "Download Report"}
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Delete project */}
+            {onDelete && (
+              deleteConfirming ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-600">Delete project?</span>
+                  <button
+                    onClick={onDelete}
+                    disabled={deleting}
+                    className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting…" : "Yes, delete"}
+                  </button>
+                  <button onClick={onCancelDelete} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={onDelete}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:text-red-500 transition-colors"
+                  title="Delete project"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )
+            )}
+            {showDownload && onDownload && (
+              <button
+                onClick={onDownload}
+                disabled={downloading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 transition-colors shadow-sm"
+              >
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {downloading ? "Generating…" : "Download Report"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

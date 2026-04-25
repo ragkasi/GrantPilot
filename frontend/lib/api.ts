@@ -34,14 +34,20 @@ function authHeaders(): Record<string, string> {
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(options?.headers ?? {}),
-    },
-    ...options,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...(options?.headers ?? {}),
+      },
+      ...options,
+    });
+  } catch {
+    // Network failure — backend unreachable or DNS error
+    throw new ApiError(0, "Cannot connect to the server. Please check that the backend is running.");
+  }
 
   if (res.status === 401) {
     clearToken();
@@ -150,6 +156,27 @@ export async function updateProject(projectId: string, data: ProjectUpdate): Pro
     method: "PATCH",
     body: JSON.stringify(data),
   });
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/projects/${projectId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!res.ok && res.status !== 204) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
 }
 
 // ---------------------------------------------------------------------------

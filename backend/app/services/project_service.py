@@ -59,6 +59,70 @@ def update_project(db: Session, project_id: str, data) -> Project | None:
     return project
 
 
+def delete_project(db: Session, project_id: str) -> bool:
+    """Delete a project and all its associated data.
+
+    Cascade order:
+      EvidenceMatch → GrantRequirement → ReadinessReport
+      DocumentChunk + files → Document
+      Project
+
+    Returns True if found and deleted, False if not found.
+    """
+    from app.models.analysis import EvidenceMatch, GrantRequirement, ReadinessReport
+    from app.models.chunk import DocumentChunk
+    from app.models.document import Document
+    from app.services import storage_service
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    project = db.get(Project, project_id)
+    if project is None:
+        return False
+
+    # Collect requirement IDs so we can delete their evidence matches
+    req_ids: list[str] = [
+        r.id for r in db.query(GrantRequirement)
+        .filter(GrantRequirement.project_id == project_id)
+        .all()
+    ]
+
+    # EvidenceMatch → GrantRequirement
+    if req_ids:
+        db.query(EvidenceMatch).filter(
+            EvidenceMatch.requirement_id.in_(req_ids)
+        ).delete(synchronize_session="fetch")
+
+    db.query(GrantRequirement).filter(
+        GrantRequirement.project_id == project_id
+    ).delete(synchronize_session="fetch")
+
+    # ReadinessReport
+    db.query(ReadinessReport).filter(
+        ReadinessReport.project_id == project_id
+    ).delete(synchronize_session="fetch")
+
+    # DocumentChunk + file + Document
+    docs = db.query(Document).filter(Document.project_id == project_id).all()
+    for doc in docs:
+        db.query(DocumentChunk).filter(
+            DocumentChunk.document_id == doc.id
+        ).delete(synchronize_session="fetch")
+        if doc.storage_url:
+            try:
+                path = storage_service.get_file_path(doc.storage_url)
+                if path.exists():
+                    path.unlink()
+            except Exception as exc:
+                logger.warning("Could not remove file %s: %s", doc.storage_url, exc)
+        db.delete(doc)
+
+    db.delete(project)
+    db.flush()
+    return True
+
+
 def update_project_status(db: Session, project_id: str, status: str) -> Project | None:
     project = db.get(Project, project_id)
     if project is None:

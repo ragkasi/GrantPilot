@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -72,3 +72,20 @@ def update_project(
     require_project_access(db, project_id, current_user)
     updated = project_service.update_project(db, project_id, body)
     return _to_response(updated)
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Delete a project and all its documents, chunks, requirements, and analysis.
+
+    This is irreversible. Ownership is enforced — only the project owner can delete.
+    """
+    require_project_access(db, project_id, current_user)
+    deleted = project_service.delete_project(db, project_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    return Response(status_code=204)

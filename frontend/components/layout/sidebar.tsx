@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, FolderOpen, Zap, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, FolderOpen, Zap, LogOut, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearToken } from "@/lib/auth";
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, matchPrefix: "/dashboard" },
   { href: "/organizations/new", label: "Organizations", icon: Building2, matchPrefix: "/organizations" },
   { href: "/projects/new", label: "Projects", icon: FolderOpen, matchPrefix: "/projects" },
+  { href: "/account", label: "Account", icon: UserCircle, matchPrefix: "/account" },
 ];
 
 export function Sidebar() {

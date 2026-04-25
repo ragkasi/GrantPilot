@@ -6,8 +6,10 @@ import { Lock, Mail, Loader2 } from "lucide-react";
 import { login } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export default function LoginPage() {
+  useDocumentTitle("Sign In");
   const router = useRouter();
   const [email, setEmail] = useState("demo@grantpilot.local");
   const [password, setPassword] = useState("DemoGrantPilot123!");

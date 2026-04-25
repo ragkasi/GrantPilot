@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FolderOpen, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { ApiError, createProject, listOrganizations } from "@/lib/api";
 import type { Organization } from "@/types";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function ProjectForm() {
+  useDocumentTitle("New Project");
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedOrgId = searchParams.get("org_id") ?? "";
@@ -75,13 +77,13 @@ export function ProjectForm() {
           </p>
           <div className="flex justify-center gap-3">
             <button
-              onClick={() => router.push(`/projects/${createdProjectId}`)}
+              onClick={() => { router.push(`/projects/${createdProjectId}`); router.refresh(); }}
               className="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Go to Project
             </button>
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => { router.push("/dashboard"); router.refresh(); }}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Dashboard

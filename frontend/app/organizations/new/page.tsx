@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, CheckCircle2, Loader2 } from "lucide-react";
 import { ApiError, createOrganization } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export default function NewOrganizationPage() {
+  useDocumentTitle("New Organization");
   const router = useRouter();
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
   const [createdOrgName, setCreatedOrgName] = useState<string>("");
@@ -53,13 +55,13 @@ export default function NewOrganizationPage() {
           </p>
           <div className="flex justify-center gap-3">
             <button
-              onClick={() => router.push(`/projects/new?org_id=${createdOrgId}`)}
+              onClick={() => { router.push(`/projects/new?org_id=${createdOrgId}`); router.refresh(); }}
               className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Create a Grant Project
             </button>
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => { router.push("/dashboard"); router.refresh(); }}
               className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Go to Dashboard
