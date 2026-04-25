@@ -1,0 +1,28 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Dev database and uploads
+grantpilot.db
+test_grantpilot.db
+uploads/
+
+# Local env (secrets must not enter the image)
+.env
+
+# Tests (not needed at runtime)
+tests/
+
+# Alembic generated .pyc
+alembic/versions/__pycache__/
+
+# Editor
+.vscode/
+.idea/
+*.swp

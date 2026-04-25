@@ -1,18 +1,92 @@
+# GrantPilot production-style docker-compose stack.
+#
+# Quick start:
+#   cp backend/.env.example backend/.env   # fill in JWT_SECRET etc.
+#   docker-compose up --build
+#
+# For local dev without Docker, run backend and frontend separately:
+#   cd backend && PYTHONPATH=. python -m uvicorn app.main:app --reload --port 8000
+#   cd frontend && npm run dev
+
 version: "3.11"
 
 services:
+  # ---------------------------------------------------------------------------
+  # Postgres database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: grantpilot
+      POSTGRES_USER: grantpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grantpilot -d grantpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # FastAPI backend
+  # ---------------------------------------------------------------------------
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      DATABASE_URL: postgresql://grantpilot:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/grantpilot
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+      RUN_MIGRATIONS: "true"
+      DEBUG: ${DEBUG:-false}
     volumes:
-      - ./backend:/app
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
+  # ---------------------------------------------------------------------------
+  # Next.js frontend
+  # ---------------------------------------------------------------------------
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_API_URL must be the URL the browser uses to reach the API.
+        # In production replace with your public API domain.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    restart: unless-stopped
     ports:
       - "3000:3000"
+    environment:
+      NODE_ENV: production
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+# ---------------------------------------------------------------------------
+# Named volumes — persist data across container restarts
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  uploads:
+    driver: local

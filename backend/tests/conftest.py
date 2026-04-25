@@ -23,6 +23,18 @@ from app.models import analysis, chunk, document, organization, project, user  #
 from app.models.base import Base
 
 
+@pytest.fixture(autouse=True)
+def disable_rate_limiting(monkeypatch):
+    """Disable rate limiting globally for all tests.
+
+    Rate limiters use module-level in-memory state; without this, tests that
+    call /auth/register or /auth/login many times would hit the per-IP limits
+    and return 429, failing unrelated tests.
+    """
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "rate_limit_enabled", False)
+
+
 @pytest.fixture()
 def test_engine(tmp_path):
     db_path = tmp_path / "test.db"

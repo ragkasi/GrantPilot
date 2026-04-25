@@ -11,9 +11,20 @@ from app.services import seed as seed_service
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    create_all_tables()
+    settings.warn_if_dev_secrets()
+
+    if settings.run_migrations:
+        # Production: alembic upgrade head ran in entrypoint.sh before startup.
+        # We trust the schema is already up-to-date.
+        pass
+    else:
+        # Dev / SQLite: create tables from SQLAlchemy metadata directly.
+        # Tests also use this path via their own engine fixture.
+        create_all_tables()
+
     with get_db_context() as db:
         seed_service.seed_demo(db)
+
     yield
 
 
@@ -27,7 +38,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

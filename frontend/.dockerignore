@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+.env.local
+.env.production
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+e2e/
+
+# Editor
+.vscode/
+.idea/
+*.swp

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import get_client_ip, login_limiter, register_limiter
 from app.core.security import create_access_token, decode_access_token
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
@@ -47,7 +48,12 @@ def get_current_user(
 # ---------------------------------------------------------------------------
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def register(
+    request: Request,
+    body: RegisterRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    register_limiter.check(get_client_ip(request))
     if user_service.get_user_by_email(db, body.email) is not None:
         raise HTTPException(status_code=409, detail="Email already registered.")
     user = user_service.create_user(db, body.email, body.password)
@@ -56,7 +62,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenRespo
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    request: Request,
+    body: LoginRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    login_limiter.check(get_client_ip(request))
     user = user_service.authenticate(db, body.email, body.password)
     if user is None:
         raise HTTPException(

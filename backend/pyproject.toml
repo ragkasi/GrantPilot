@@ -17,6 +17,8 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "email-validator>=2.0.0",
+    # Postgres driver — used in Docker/production; SQLite dev works without it
+    "psycopg2-binary>=2.9.0",
 ]
 
 [project.optional-dependencies]
