@@ -123,12 +123,20 @@ def _persist_requirements(
     raw: dict,
 ) -> list[GrantRequirement]:
     """Map the LLM JSON response to GrantRequirement rows and add them to the session."""
-    # Delete any prior requirements for this project (re-run scenario)
+    # Delete any prior requirements for this project (re-run scenario).
+    # Must delete EvidenceMatch rows first because Postgres enforces the FK
+    # constraint on evidence_matches.requirement_id — SQLite does not by default.
+    from app.models.analysis import EvidenceMatch
     existing = (
         db.query(GrantRequirement)
         .filter(GrantRequirement.project_id == project_id)
         .all()
     )
+    existing_ids = [r.id for r in existing]
+    if existing_ids:
+        db.query(EvidenceMatch).filter(
+            EvidenceMatch.requirement_id.in_(existing_ids)
+        ).delete(synchronize_session="fetch")
     for r in existing:
         db.delete(r)
 
