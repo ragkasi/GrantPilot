@@ -1,8 +1,11 @@
-"""Document lifecycle: validation → persistence → storage → parsing → chunking."""
+"""Document lifecycle: validation → persistence → storage → parsing → chunking → deletion."""
+import logging
 import uuid
 from pathlib import Path
 
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.models.chunk import DocumentChunk
 from app.models.document import Document
@@ -134,3 +137,36 @@ def list_chunks_for_project(db: Session, project_id: str) -> list[DocumentChunk]
         .order_by(Document.id, DocumentChunk.chunk_index)
         .all()
     )
+
+
+# ---------------------------------------------------------------------------
+# Deletion
+# ---------------------------------------------------------------------------
+
+def delete_document(db: Session, doc_id: str) -> bool:
+    """Delete a document, its chunks, and its file on disk.
+
+    Returns True if the document was found and deleted, False if not found.
+    File deletion errors are logged but do not abort the DB deletion.
+    """
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        return False
+
+    # Remove chunks first (no cascade configured on the FK)
+    db.query(DocumentChunk).filter(DocumentChunk.document_id == doc_id).delete(
+        synchronize_session="fetch"
+    )
+
+    # Remove file from local storage
+    if doc.storage_url:
+        try:
+            file_path = storage_service.get_file_path(doc.storage_url)
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as exc:
+            logger.warning("Could not remove file %s: %s", doc.storage_url, exc)
+
+    db.delete(doc)
+    db.flush()
+    return True

@@ -115,6 +115,15 @@ export interface ProjectCreate {
   deadline?: string | null;
 }
 
+/** Partial update — only provided fields are changed. */
+export interface ProjectUpdate {
+  grant_name?: string;
+  funder_name?: string | null;
+  grant_amount?: string | null;
+  deadline?: string | null;
+  grant_source_url?: string | null;
+}
+
 /** Returned by GET /projects/{id}/analysis */
 export interface AnalysisResult {
   project_id: string;

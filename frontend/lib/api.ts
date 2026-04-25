@@ -12,6 +12,7 @@ import type {
   OrganizationCreate,
   Project,
   ProjectCreate,
+  ProjectUpdate,
 } from "@/types";
 import { clearToken, getToken } from "@/lib/auth";
 
@@ -68,13 +69,22 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export async function login(email: string, password: string): Promise<string> {
-  const data = await apiFetch<{ access_token: string; token_type: string }>(
-    "/auth/login",
-    {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    },
-  );
+  // Use raw fetch (not apiFetch) so a 401 "wrong credentials" response is surfaced
+  // as a normal error rather than triggering the session-expired redirect.
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+  const data = await res.json();
   return data.access_token;
 }
 
@@ -135,12 +145,40 @@ export async function getProject(id: string): Promise<Project> {
   return apiFetch<Project>(`/projects/${id}`);
 }
 
+export async function updateProject(projectId: string, data: ProjectUpdate): Promise<Project> {
+  return apiFetch<Project>(`/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
 
 export async function listDocuments(projectId: string): Promise<Document[]> {
   return apiFetch<Document[]>(`/projects/${projectId}/documents`);
+}
+
+export async function deleteDocument(docId: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/documents/${docId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!res.ok && res.status !== 204) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
 }
 
 /**
@@ -207,14 +245,42 @@ export async function getReport(
 }
 
 /**
- * Opens the PDF report download in a new browser tab.
- * The backend generates the PDF on first call and caches it for subsequent calls.
- * Attaches the auth token as a query param since the download opens in a new tab.
+ * Downloads the PDF report using an authenticated fetch request, then triggers
+ * a browser download via a synthetic anchor click with a blob URL.
+ *
+ * This approach is used instead of window.open() because window.open() cannot
+ * send the Authorization: Bearer header required by the protected endpoint.
  */
-export function downloadReport(projectId: string): void {
+export async function downloadReport(projectId: string): Promise<void> {
   const token = getToken();
-  const url = `${BASE_URL}/projects/${projectId}/report/download`;
-  // For the download, include the token as a header isn't possible for window.open,
-  // so we open the URL directly. The backend's FileResponse works for authenticated users.
-  window.open(url, "_blank");
+  const res = await fetch(`${BASE_URL}/projects/${projectId}/report/download`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `grant_readiness_report_${projectId.slice(0, 8)}.pdf`;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
 }

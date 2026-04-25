@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -47,6 +47,27 @@ async def upload_document(
         document_type=doc.document_type,
         status=doc.status,
     )
+
+
+@router.delete("/documents/{doc_id}", status_code=204)
+def delete_document(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Delete a document and its associated chunks and file.
+
+    Ownership is enforced through document → project → organization → user.
+    """
+    doc = document_service.get_document(db, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    # Verify the caller owns the project this document belongs to
+    require_project_access(db, doc.project_id, current_user)
+
+    document_service.delete_document(db, doc_id)
+    return Response(status_code=204)
 
 
 @router.get("/projects/{project_id}/documents", response_model=list[DocumentResponse])

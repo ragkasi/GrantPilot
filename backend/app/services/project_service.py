@@ -47,6 +47,18 @@ def list_projects_for_user(db: Session, user_id: str) -> list[Project]:
     )
 
 
+def update_project(db: Session, project_id: str, data) -> Project | None:
+    """Partial update — only fields explicitly set in the request are applied."""
+    project = db.get(Project, project_id)
+    if project is None:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
+    project.updated_at = datetime.now(timezone.utc)
+    db.flush()
+    return project
+
+
 def update_project_status(db: Session, project_id: str, status: str) -> Project | None:
     project = db.get(Project, project_id)
     if project is None:

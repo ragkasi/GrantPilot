@@ -40,7 +40,10 @@
       "Bash(PYTHONPATH=. python -m uvicorn app.main:app --port 8000 --reload)",
       "Bash(taskkill /PID 31860 /F)",
       "PowerShell(Stop-Process *)",
-      "Bash(PYTHONPATH=. python -m pytest tests/test_upload_analyze_flow.py -v --tb=short)"
+      "Bash(PYTHONPATH=. python -m pytest tests/test_upload_analyze_flow.py -v --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_delete_edit.py -v --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_delete_edit.py -q)",
+      "Bash(npx playwright *)"
     ]
   }
 }

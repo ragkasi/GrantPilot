@@ -21,6 +21,15 @@ class ProjectCreate(BaseModel):
     deadline: str | None = None
 
 
+class ProjectUpdate(BaseModel):
+    """Partial update — only fields that are explicitly included will be changed."""
+    grant_name: str | None = Field(None, min_length=1, max_length=300)
+    funder_name: str | None = None
+    grant_amount: str | None = None
+    deadline: str | None = None
+    grant_source_url: str | None = None
+
+
 class ProjectResponse(BaseModel):
     id: str
     organization_id: str
