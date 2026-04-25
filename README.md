@@ -1,148 +1,178 @@
 # GrantPilot
 
-GrantPilot is an AI-powered grant eligibility and application assistant for small nonprofits. It helps organizations analyze grant opportunities, identify missing requirements, match grant criteria to internal evidence, draft first-pass responses, and generate a downloadable readiness packet.
-
-## Why It Matters
-
-Small nonprofits often lack dedicated grant-writing staff. GrantPilot helps them understand whether they are ready to apply and what evidence they need to strengthen their application.
+AI-powered grant eligibility and application assistant for small nonprofits. Upload your nonprofit documents and a grant opportunity — GrantPilot extracts requirements, matches evidence, scores readiness, drafts application answers, and generates a downloadable PDF report.
 
 ## Core Features
 
-- Upload nonprofit documents
-- Upload grant opportunity documents
-- Extract grant requirements
-- Match requirements to nonprofit evidence
-- Score eligibility and readiness
-- Identify missing documents
-- Draft grant responses with citations
-- Generate downloadable PDF packet
+- JWT-authenticated multi-user accounts
+- Organization and grant project management
+- PDF document upload, parsing, and chunking
+- AI-powered grant requirement extraction (Claude)
+- Evidence matching with citations and confidence scores
+- Deterministic eligibility and readiness scoring
+- Draft answer generation for narrative questions
+- Downloadable PDF grant readiness report
+- MCP server for agent-driven grant analysis workflows
 
 ## Tech Stack
 
-- Next.js 15 · TypeScript · Tailwind CSS
-- FastAPI · Python 3.11+ · Postgres · pgvector
-- PyMuPDF · Claude / OpenAI API
-- MCP server (grant-context-mcp)
+- **Frontend:** Next.js 15 · TypeScript · Tailwind CSS
+- **Backend:** FastAPI · Python 3.11+ · SQLAlchemy · Alembic · Postgres / SQLite
+- **AI:** Anthropic Claude (analysis) · OpenAI optional (embeddings)
+- **PDF:** PyMuPDF (parsing) · fpdf2 (report generation)
+- **MCP:** grant-context-mcp server
+- **Tests:** Pytest · Playwright
 
 ---
 
-## Running the Frontend Locally
+## Quick Start — Docker Compose
 
-### Prerequisites
+The fastest way to run the full stack locally.
 
-- Node.js 20+
-- npm 10+
+### 1. Copy and fill the root env template
 
-### Setup
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set at minimum:
+
+```
+JWT_SECRET=<run: python -c "import secrets; print(secrets.token_hex(32))">
+ANTHROPIC_API_KEY=<your key>   # optional — enables real AI analysis
+```
+
+### 2. Build and start
+
+```bash
+docker compose up --build
+```
+
+On first boot this will:
+- Start Postgres and wait for it to be ready
+- Run all Alembic migrations (`alembic upgrade head`)
+- Seed the demo account and BrightPath demo project
+- Serve the API on **http://localhost:8000**
+- Serve the frontend on **http://localhost:3000**
+
+### 3. Sign in
+
+Open **http://localhost:3000** and use the pre-filled demo credentials:
+
+| Field | Value |
+|-------|-------|
+| Email | `demo@grantpilot.local` |
+| Password | `DemoGrantPilot123!` |
+
+---
+
+## Local Development (without Docker)
+
+### Backend
+
+**Prerequisites:** Python 3.11+, pip
+
+```bash
+cd backend
+cp .env.example .env      # fill in JWT_SECRET at minimum
+pip install -e ".[dev]"   # installs all deps from pyproject.toml
+```
+
+Start the API server (SQLite used by default):
+
+```bash
+PYTHONPATH=. python -m uvicorn app.main:app --reload --port 8000
+```
+
+- API: **http://localhost:8000**
+- Swagger docs: **http://localhost:8000/docs**
+
+Run tests:
+
+```bash
+PYTHONPATH=. python -m pytest tests/ -v
+```
+
+### Frontend
+
+**Prerequisites:** Node.js 20+, npm
 
 ```bash
 cd frontend
+cp .env.local.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install
 npm run dev
 ```
 
-The app will be available at **http://localhost:3000**.
+- App: **http://localhost:3000**
 
-It redirects automatically to `/dashboard`.
-
-### Pages
-
-| Route | Description |
-|---|---|
-| `/dashboard` | Overview of organizations and grant projects |
-| `/organizations/new` | Create a nonprofit organization profile |
-| `/projects/new` | Create a grant project and upload documents |
-| `/projects/[id]` | Grant analysis dashboard — scores, requirements, draft answers, risk flags |
-
-### Demo Data
-
-Phase 1 uses mocked data for:
-
-- **Organization:** BrightPath Youth Foundation (Columbus, Ohio)
-- **Grant:** Community STEM Access Fund — Ohio Community Foundation
-- **Eligibility score:** 82/100
-- **Readiness score:** 74/100
-- **10 grant requirements** with evidence citations
-- **3 missing documents** (IRS letter, board list, matching funds letter)
-- **4 risk flags** (2 high, 2 medium)
-- **3 draft grant answers** with citations and missing evidence notes
-
-All data lives in `frontend/lib/mock-data.ts`.
-
-### Other Commands
+Other commands:
 
 ```bash
 npm run build       # Production build
-npm run typecheck   # TypeScript check (no emit)
-npm run lint        # ESLint
+npm run typecheck   # TypeScript check
+npx playwright test # E2E tests (requires both servers running)
 ```
 
 ---
 
-## Running the Backend Locally
+## Environment Files
 
-### Prerequisites
+### What to create
 
-- Python 3.11+
-- pip
+| File | Copy from | Purpose |
+|------|-----------|---------|
+| `.env` | `.env.example` | Docker Compose secrets (JWT, Postgres, API keys) |
+| `backend/.env` | `backend/.env.example` | Local backend dev without Docker |
+| `frontend/.env.local` | `frontend/.env.local.example` | Frontend API base URL |
+| `mcp/grant-context-mcp/.env` | `mcp/grant-context-mcp/.env.example` | MCP server config |
 
-### Setup
+### What is gitignored
 
-```bash
-cd backend
-pip install fastapi "uvicorn[standard]" pydantic pydantic-settings python-multipart httpx anthropic
-```
-
-For running tests, also install:
-
-```bash
-pip install pytest pytest-asyncio httpx
-```
-
-### Start the API server
-
-```bash
-cd backend
-PYTHONPATH=. uvicorn app.main:app --reload --port 8000
-```
-
-The API will be available at **http://localhost:8000**.
-
-Interactive docs (Swagger UI): **http://localhost:8000/docs**
-
-### Environment variables
-
-Copy `backend/.env.example` to `backend/.env` and fill in values:
+All actual secret files are gitignored and **never committed**:
 
 ```
-JWT_SECRET=change-me-to-a-strong-random-secret   # required
-DATABASE_URL=sqlite:///./grantpilot.db            # default SQLite
-ANTHROPIC_API_KEY=                                # required for real AI analysis
-OPENAI_API_KEY=                                   # optional: enables OpenAI embeddings
-UPLOAD_DIR=uploads
-JWT_EXPIRE_DAYS=7
+.env                          # root docker-compose secrets
+backend/.env                  # backend local dev
+frontend/.env.local           # frontend local dev
+frontend/.env.production
+mcp/grant-context-mcp/.env
 ```
 
-### Demo login
+Only the `.example` templates are tracked in git — they contain no real secrets.
 
-The backend seeds a demo account on startup:
+### Key variables
 
-- **Email:** `demo@grantpilot.local`
-- **Password:** `DemoGrantPilot123!`
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `JWT_SECRET` | **Yes** | dev default | Generate: `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `DATABASE_URL` | No | SQLite (local) | Set to Postgres URL in production |
+| `ANTHROPIC_API_KEY` | No | — | Required for real AI grant analysis |
+| `OPENAI_API_KEY` | No | — | Optional; enables OpenAI embeddings |
+| `ALLOWED_ORIGINS` | No | `http://localhost:3000` | Comma-separated frontend origins |
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:8000` | Baked into frontend at build time |
 
-### Run tests
+---
 
-```bash
-cd backend
-PYTHONPATH=. python -m pytest tests/ -v
-```
+## Pages
 
-### API routes
+| Route | Description |
+|-------|-------------|
+| `/login` | Sign in with email and password |
+| `/dashboard` | All organizations and grant projects with analysis scores |
+| `/account` | User profile, stats, and sign-out |
+| `/organizations/new` | Create a nonprofit organization |
+| `/projects/new` | Create a grant project |
+| `/projects/[id]` | Upload documents, run analysis, view scores, download report |
+
+---
+
+## API Routes
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check |
-| `POST` | `/auth/register` | Register a new user |
+| `POST` | `/auth/register` | Register and receive JWT |
 | `POST` | `/auth/login` | Login and receive JWT |
 | `GET` | `/auth/me` | Get current user |
 | `GET` | `/organizations` | List user's organizations |
@@ -153,74 +183,75 @@ PYTHONPATH=. python -m pytest tests/ -v
 | `POST` | `/projects` | Create a project |
 | `GET` | `/projects/{id}` | Get project (owner only) |
 | `PATCH` | `/projects/{id}` | Update project metadata |
+| `DELETE` | `/projects/{id}` | Delete project and all data |
 | `POST` | `/documents/upload` | Upload a document (multipart) |
 | `DELETE` | `/documents/{id}` | Delete a document (owner only) |
 | `GET` | `/projects/{id}/documents` | List project documents |
 | `POST` | `/projects/{id}/analyze` | Run grant analysis |
 | `GET` | `/projects/{id}/analysis` | Get analysis results |
 | `GET` | `/projects/{id}/report` | Get report metadata |
-| `GET` | `/projects/{id}/report/download` | Download PDF report (auth required) |
+| `GET` | `/projects/{id}/report/download` | Download PDF report (authenticated) |
 
 ---
 
-## Running Playwright E2E Tests
+## Playwright E2E Tests
 
-Playwright tests cover the full authenticated happy path.
-
-### Prerequisites
-
-Both backend and frontend must be running:
+Both backend and frontend must be running first:
 
 ```bash
-# Terminal 1 — backend
-cd backend
-PYTHONPATH=. python -m uvicorn app.main:app --port 8000
+# Terminal 1
+cd backend && PYTHONPATH=. python -m uvicorn app.main:app --port 8000
 
-# Terminal 2 — frontend
-cd frontend
-npm run dev
+# Terminal 2
+cd frontend && npm run dev
 ```
 
-### Install browsers (first time only)
+Then in a third terminal:
 
 ```bash
 cd frontend
-npx playwright install chromium
-```
-
-### Run E2E tests
-
-```bash
-cd frontend
+npx playwright install chromium   # first time only
 npx playwright test
 ```
 
-Tests cover: login, dashboard, project detail scores, tab switching, edit form,
-report download, project creation, document upload, and delete confirmation.
+Tests cover: login, sign-out, dashboard, project detail scores, tab switching,
+edit form, report download, project creation, document upload, delete confirmation.
 
 ---
 
 ## Key User Flows
 
+### Document Upload & Analysis
+
+1. Create a project → opens the Upload panel
+2. Upload nonprofit documents (mission statement, budget, annual report, etc.)
+3. Upload the **Grant Opportunity Document** (enables AI extraction)
+4. Click **Run Analysis** — extracts requirements, matches evidence, scores readiness
+5. View requirements table, draft answers, risk flags, and missing documents
+
 ### Report Download
 
-After running analysis on a project, clicking **Download Report** fetches the PDF
-from the backend with the Bearer token via an authenticated `fetch()` call, then
-triggers a browser download via a synthetic anchor click. No `window.open()` is
-used, so authentication is preserved.
+Clicking **Download Report** fetches the PDF via an authenticated `fetch()` request
+(not `window.open`) so the Bearer token is sent correctly. The PDF is generated
+lazily on first request and cached for subsequent downloads.
 
-### Document Deletion
+### Project Deletion
 
-In the project Upload panel, each uploaded document has a delete button (trash icon).
-Clicking it shows an inline confirmation ("Delete? Yes / No"). Clicking Yes sends
-`DELETE /documents/{id}` and removes the document, its parsed chunks, and its file
-from local storage.
+The **Delete** button in the project header shows an inline confirmation before
+permanently removing the project, all uploaded documents, parsed chunks, analysis
+results, and report files.
 
-### Project Editing
+---
 
-The pencil icon in the project page header opens an inline edit form for grant name,
-funder, deadline, grant amount, and source URL. Saving sends `PATCH /projects/{id}`
-with only the changed fields. Analysis results are preserved across edits.
+## Deployment
+
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for full instructions covering:
+
+- Docker Compose production stack with Postgres
+- Alembic migration flow
+- CORS and rate limiting configuration
+- HTTPS / reverse proxy setup (Nginx example)
+- GitHub Actions CI setup
 
 ---
 
@@ -228,19 +259,31 @@ with only the changed fields. Analysis results are preserved across edits.
 
 ```
 grantpilot/
-├── frontend/          # Next.js 15 app
-│   ├── app/           # App Router pages
-│   ├── components/    # Shared components
-│   ├── lib/           # API client, auth helpers
-│   ├── types/         # TypeScript types
-│   └── e2e/           # Playwright E2E tests
-├── backend/           # FastAPI app (Python 3.11+)
-│   ├── app/           # Application code
-│   ├── alembic/       # Database migrations
-│   └── tests/         # Pytest test suite
-├── mcp/               # grant-context-mcp MCP server
-├── docs/              # Architecture, product spec, data model, etc.
-└── .claude/           # Agents, skills, hooks, slash commands
+├── .env.example               # Docker Compose env template (copy to .env)
+├── docker-compose.yml         # Production-style stack: Postgres + backend + frontend
+├── frontend/                  # Next.js 15 app
+│   ├── app/                   # App Router pages
+│   ├── components/            # Shared UI components
+│   ├── lib/                   # API client, auth helpers, hooks
+│   ├── types/                 # TypeScript type definitions
+│   ├── e2e/                   # Playwright E2E tests
+│   ├── .env.local.example     # Frontend env template
+│   └── Dockerfile
+├── backend/                   # FastAPI app (Python 3.11+)
+│   ├── app/                   # Application code
+│   │   ├── api/               # Route handlers
+│   │   ├── core/              # Config, security, database, rate limiting
+│   │   ├── models/            # SQLAlchemy models
+│   │   ├── schemas/           # Pydantic request/response schemas
+│   │   └── services/          # Business logic
+│   ├── alembic/               # Database migrations
+│   ├── tests/                 # Pytest test suite (162 tests)
+│   ├── .env.example           # Backend env template
+│   ├── entrypoint.sh          # Docker entrypoint (runs migrations, starts uvicorn)
+│   └── Dockerfile
+├── mcp/
+│   └── grant-context-mcp/     # MCP server exposing 5 grant-analysis tools
+├── docs/                      # Architecture, data model, API contracts, deployment
+└── .github/
+    └── workflows/ci.yml       # GitHub Actions: backend tests + frontend build + E2E
 ```
-
-See `docs/MVP_ROADMAP.md` for the full phase plan.
