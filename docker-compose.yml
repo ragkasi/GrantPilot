@@ -8,8 +8,6 @@
 #   cd backend && PYTHONPATH=. python -m uvicorn app.main:app --reload --port 8000
 #   cd frontend && npm run dev
 
-version: "3.11"
-
 services:
   # ---------------------------------------------------------------------------
   # Postgres database

@@ -16,6 +16,9 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Ensure a public directory exists so the COPY in the runner stage never fails.
+RUN mkdir -p /app/public
+
 RUN npm run build
 
 # Stage 3: production runner
@@ -23,14 +26,17 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Install curl for the healthcheck (wget is not in node:20-alpine).
+RUN apk add --no-cache curl
+
 # next.config.ts must have output: 'standalone' for this to work.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public 2>/dev/null || true
+COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget -qO- http://localhost:3000/api/health || exit 1
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server.js"]
