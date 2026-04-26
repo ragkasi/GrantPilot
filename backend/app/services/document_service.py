@@ -148,12 +148,32 @@ def delete_document(db: Session, doc_id: str) -> bool:
 
     Returns True if the document was found and deleted, False if not found.
     File deletion errors are logged but do not abort the DB deletion.
+
+    Deletion order (Postgres FK enforcement):
+      EvidenceMatch (references document_chunk_id) →
+      DocumentChunk (references document_id) →
+      Document
     """
+    from app.models.analysis import EvidenceMatch
+
     doc = db.get(Document, doc_id)
     if doc is None:
         return False
 
-    # Remove chunks first (no cascade configured on the FK)
+    # Collect chunk IDs so we can delete referencing EvidenceMatch rows first.
+    # Postgres enforces evidence_matches.document_chunk_id FK strictly.
+    chunk_ids = [
+        row.id
+        for row in db.query(DocumentChunk.id)
+        .filter(DocumentChunk.document_id == doc_id)
+        .all()
+    ]
+    if chunk_ids:
+        db.query(EvidenceMatch).filter(
+            EvidenceMatch.document_chunk_id.in_(chunk_ids)
+        ).delete(synchronize_session="fetch")
+
+    # Now safe to remove the chunks themselves
     db.query(DocumentChunk).filter(DocumentChunk.document_id == doc_id).delete(
         synchronize_session="fetch"
     )
