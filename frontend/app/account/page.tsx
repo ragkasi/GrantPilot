@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Calendar, ArrowLeft, LogOut, Loader2, AlertCircle } from "lucide-react";
-import { ApiError, getMe, listOrganizations, listProjects } from "@/lib/api";
+import { User, Calendar, ArrowLeft, LogOut, Loader2, AlertCircle, KeyRound, CheckCircle2 } from "lucide-react";
+import { ApiError, changePassword, getMe, listOrganizations, listProjects } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -26,6 +26,11 @@ export default function AccountPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Password change state
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -51,6 +56,36 @@ export default function AccountPage() {
   function handleSignOut() {
     clearToken();
     router.push("/login");
+  }
+
+  async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const current = fd.get("current_password") as string;
+    const next = fd.get("new_password") as string;
+    const confirm = fd.get("confirm_password") as string;
+
+    if (next !== confirm) {
+      setPwError("New passwords do not match.");
+      return;
+    }
+    if (next.length < 8) {
+      setPwError("New password must be at least 8 characters.");
+      return;
+    }
+
+    setPwSaving(true);
+    setPwError(null);
+    setPwSuccess(false);
+    try {
+      await changePassword(current, next);
+      setPwSuccess(true);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      setPwError(err instanceof ApiError ? err.message : "Failed to change password.");
+    } finally {
+      setPwSaving(false);
+    }
   }
 
   function formatDate(iso: string): string {
@@ -136,6 +171,83 @@ export default function AccountPage() {
               </div>
             </div>
           )}
+
+          {/* Change password */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-gray-400" />
+              Change Password
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">
+              Your new password must be at least 8 characters.
+            </p>
+
+            {pwSuccess && (
+              <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                Password changed successfully.
+              </div>
+            )}
+            {pwError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+                {pwError}
+              </p>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Current Password
+                </label>
+                <input
+                  name="current_password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  New Password
+                </label>
+                <input
+                  name="new_password"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Confirm New Password
+                </label>
+                <input
+                  name="confirm_password"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={pwSaving}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+                >
+                  {pwSaving ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                  ) : (
+                    "Update Password"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
 
           {/* Sign out */}
           <div className="bg-white border border-gray-200 rounded-xl p-6">

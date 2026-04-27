@@ -48,7 +48,11 @@
       "Bash(PYTHONPATH=. python -m pytest tests/test_project_deletion.py -q)",
       "Bash(PYTHONPATH=. python -m pytest tests/test_project_deletion.py -q --tb=line)",
       "Bash(PYTHONPATH=. python -m pytest tests/ --tb=line -q)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(PYTHONPATH=. python -m pytest tests/ -q --tb=short --ignore=tests/test_project_deletion.py)",
+      "Bash(PYTHONPATH=. python -m pytest tests/ -q --tb=line)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_phase13.py -v --tb=short)",
+      "Bash(PYTHONPATH=. python -m pytest tests/test_phase13.py -q --tb=line)"
     ]
   }
 }

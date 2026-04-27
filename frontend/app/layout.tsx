@@ -7,8 +7,15 @@ import { AppShell } from "@/components/layout/app-shell";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GrantPilot",
-  description: "AI-powered grant eligibility and application assistant for nonprofits",
+  title: {
+    default: "GrantPilot",
+    template: "%s — GrantPilot",
+  },
+  description:
+    "AI-powered grant eligibility and application assistant for nonprofits. Upload documents, extract requirements, match evidence, and generate a readiness report.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

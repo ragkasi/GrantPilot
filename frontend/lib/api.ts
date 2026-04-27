@@ -6,6 +6,7 @@
 
 import type {
   AnalysisResult,
+  AnalysisSummary,
   Document,
   DocumentSummary,
   Organization,
@@ -209,14 +210,15 @@ export async function deleteDocument(docId: string): Promise<void> {
 }
 
 /**
- * Uploads a document using multipart/form-data.
- * Does NOT set Content-Type — the browser sets it with the multipart boundary.
+ * Uploads a document using XMLHttpRequest so we can report real upload progress.
+ * onProgress receives a 0–100 integer as bytes are sent.
  */
 export async function uploadDocument(
   projectId: string,
   organizationId: string,
   documentType: string,
   file: File,
+  onProgress?: (percent: number) => void,
 ): Promise<DocumentSummary> {
   const form = new FormData();
   form.append("organization_id", organizationId);
@@ -225,26 +227,49 @@ export async function uploadDocument(
   form.append("file", file);
 
   const token = getToken();
-  const res = await fetch(`${BASE_URL}/documents/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  });
 
-  if (res.status === 401) {
-    clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
-    throw new ApiError(401, "Session expired. Please log in again.");
-  }
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail ?? detail;
-    } catch { /* ignore */ }
-    throw new ApiError(res.status, detail);
-  }
-  return res.json() as Promise<DocumentSummary>;
+  return new Promise<DocumentSummary>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        clearToken();
+        if (typeof window !== "undefined") window.location.href = "/login";
+        reject(new ApiError(401, "Session expired. Please log in again."));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as DocumentSummary);
+        } catch {
+          reject(new ApiError(xhr.status, "Invalid response from server."));
+        }
+      } else {
+        let detail = xhr.statusText;
+        try {
+          const body = JSON.parse(xhr.responseText);
+          detail = body.detail ?? detail;
+        } catch { /* ignore */ }
+        reject(new ApiError(xhr.status, detail));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new ApiError(0, "Cannot connect to the server. Please check that the backend is running."));
+    };
+
+    xhr.open("POST", `${BASE_URL}/documents/upload`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.send(form);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +284,42 @@ export async function runAnalysis(
 
 export async function getAnalysis(projectId: string): Promise<AnalysisResult> {
   return apiFetch<AnalysisResult>(`/projects/${projectId}/analysis`);
+}
+
+export async function getAnalysisSummary(projectId: string): Promise<AnalysisSummary> {
+  return apiFetch<AnalysisSummary>(`/projects/${projectId}/analysis/summary`);
+}
+
+// ---------------------------------------------------------------------------
+// Auth extras
+// ---------------------------------------------------------------------------
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/auth/change-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!res.ok && res.status !== 204) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? detail;
+    } catch { /* ignore */ }
+    throw new ApiError(res.status, detail);
+  }
 }
 
 // ---------------------------------------------------------------------------

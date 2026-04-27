@@ -67,6 +67,17 @@ class AnalysisResponse(BaseModel):
     draft_answers: list[DraftAnswer]
 
 
+class AnalysisSummary(BaseModel):
+    """Lightweight summary for dashboard cards — avoids fetching the full payload."""
+    project_id: str
+    eligibility_score: int = Field(..., ge=0, le=100)
+    readiness_score: int = Field(..., ge=0, le=100)
+    requirement_count: int
+    satisfied_count: int
+    missing_doc_count: int
+    high_risk_count: int
+
+
 class AnalyzeResponse(BaseModel):
     """Returned immediately when analysis is triggered."""
     project_id: str

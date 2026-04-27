@@ -31,6 +31,7 @@ jobs:
             fastapi "uvicorn[standard]" pydantic pydantic-settings python-multipart \
             httpx anthropic sqlalchemy alembic pymupdf fpdf2 \
             "python-jose[cryptography]" bcrypt email-validator \
+            psycopg2-binary \
             pytest pytest-asyncio
 
       - name: Run backend tests
@@ -66,13 +67,12 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000
 
   # ---------------------------------------------------------------------------
-  # E2E tests (Playwright) — runs only on main branch or when manually triggered
-  # Requires both servers to be running; set up here with dev mode.
+  # E2E tests (Playwright) against the production build.
+  # Runs only on pushes to main or manual trigger to save CI minutes.
   # ---------------------------------------------------------------------------
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
-    # Only run E2E on pushes to main, not on every PR (saves CI minutes)
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
@@ -93,38 +93,30 @@ jobs:
           pip install \
             fastapi "uvicorn[standard]" pydantic pydantic-settings python-multipart \
             httpx anthropic sqlalchemy alembic pymupdf fpdf2 \
-            "python-jose[cryptography]" bcrypt email-validator
+            "python-jose[cryptography]" bcrypt email-validator \
+            psycopg2-binary
 
       - name: Start backend
         run: |
           cd backend
           PYTHONPATH=. python -m uvicorn app.main:app --port 8000 &
-          echo "Backend PID: $!"
-          # Wait for backend to be ready
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:8000/health && break
-            sleep 2
-          done
+          for i in $(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 2; done
         env:
           JWT_SECRET: ci-test-secret-not-for-production
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci
 
-      - name: Build frontend for production
+      - name: Build frontend (production)
         run: cd frontend && npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
 
-      - name: Start frontend
+      - name: Start frontend (production server)
         run: |
           cd frontend
           npm run start &
-          echo "Frontend PID: $!"
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/api/health && break
-            sleep 2
-          done
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/api/health && break; sleep 2; done
 
       - name: Install Playwright browsers
         run: cd frontend && npx playwright install chromium --with-deps

@@ -6,15 +6,15 @@ import {
   Plus, ArrowRight, FileText, Building2, Clock, Loader2,
   AlertCircle, FolderOpen, Zap,
 } from "lucide-react";
-import { ApiError, getAnalysis, listOrganizations, listProjects } from "@/lib/api";
-import type { AnalysisResult, Organization, Project } from "@/types";
+import { ApiError, getAnalysisSummary, listOrganizations, listProjects } from "@/lib/api";
+import type { AnalysisSummary, Organization, Project } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string; isNetwork: boolean }
-  | { phase: "ready"; orgs: Organization[]; projects: Project[]; scores: Map<string, { eligibility: number; readiness: number }> };
+  | { phase: "ready"; orgs: Organization[]; projects: Project[]; scores: Map<string, AnalysisSummary> };
 
 const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
   analyzed: { label: "Analyzed", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -37,8 +37,9 @@ export default function DashboardPage() {
       try {
         const [orgs, projects] = await Promise.all([listOrganizations(), listProjects()]);
 
-        // Fetch analysis scores for analyzed projects in parallel (best-effort)
-        const scoreMap = new Map<string, { eligibility: number; readiness: number }>();
+        // Fetch lightweight analysis summaries for analyzed projects in parallel (best-effort).
+        // Uses /analysis/summary instead of the full /analysis payload to keep requests small.
+        const scoreMap = new Map<string, AnalysisSummary>();
         const analyzedIds = projects
           .filter((p) => p.status === "analyzed" || p.status === "report_generated")
           .map((p) => p.id);
@@ -46,8 +47,8 @@ export default function DashboardPage() {
         await Promise.all(
           analyzedIds.map(async (id) => {
             try {
-              const a: AnalysisResult = await getAnalysis(id);
-              scoreMap.set(id, { eligibility: a.eligibility_score, readiness: a.readiness_score });
+              const summary = await getAnalysisSummary(id);
+              scoreMap.set(id, summary);
             } catch {
               // silently skip — scores are optional enrichment
             }
@@ -281,11 +282,11 @@ export default function DashboardPage() {
                         <div className="hidden sm:flex items-center gap-3 text-right">
                           <div>
                             <p className="text-xs text-gray-400">Eligibility</p>
-                            <p className="text-lg font-bold text-indigo-600">{score.eligibility}</p>
+                            <p className="text-lg font-bold text-indigo-600">{score.eligibility_score}</p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-400">Readiness</p>
-                            <p className="text-lg font-bold text-violet-600">{score.readiness}</p>
+                            <p className="text-lg font-bold text-violet-600">{score.readiness_score}</p>
                           </div>
                         </div>
                       )}

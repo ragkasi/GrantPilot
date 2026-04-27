@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -7,7 +7,13 @@ from app.core.database import get_db
 from app.core.rate_limit import get_client_ip, login_limiter, register_limiter
 from app.core.security import create_access_token, decode_access_token
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
 from app.services import user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -86,3 +92,21 @@ def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
         email=current_user.email,
         created_at=current_user.created_at,
     )
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Change the current user's password. Requires the correct current password."""
+    success = user_service.change_password(
+        db, current_user, body.current_password, body.new_password
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+    return Response(status_code=204)

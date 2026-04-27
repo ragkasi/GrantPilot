@@ -113,6 +113,7 @@ export default function ProjectPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docType, setDocType] = useState<DocumentType>("mission_statement");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,16 +172,25 @@ export default function ProjectPage() {
   async function handleUpload() {
     if (!selectedFile || state.phase !== "upload") return;
     setUploading(true);
+    setUploadProgress(0);
     setUploadError(null);
     try {
-      await uploadDocument(projectId, state.project.organization_id, docType, selectedFile);
+      await uploadDocument(
+        projectId,
+        state.project.organization_id,
+        docType,
+        selectedFile,
+        (pct) => setUploadProgress(pct),
+      );
       setSelectedFile(null);
+      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = "";
       const freshDocs = await listDocuments(projectId);
       setState((prev) =>
         prev.phase === "upload" ? { ...prev, documents: freshDocs } : prev,
       );
     } catch (err) {
+      setUploadProgress(0);
       setUploadError(
         err instanceof ApiError ? err.message : "Upload failed. Please try again.",
       );
@@ -435,9 +445,25 @@ export default function ProjectPage() {
                   className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploading ? "Uploading…" : "Upload"}
+                  {uploading ? (uploadProgress > 0 ? `${uploadProgress}%` : "Uploading…") : "Upload"}
                 </button>
               </div>
+
+              {/* Upload progress bar */}
+              {uploading && uploadProgress > 0 && (
+                <div className="mt-1">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Uploading {selectedFile?.name}</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-500 rounded-full transition-all duration-150"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {documents.length > 0 && (
                 <div className="mt-2">

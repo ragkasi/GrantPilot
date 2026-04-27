@@ -8,7 +8,7 @@ from app.api.auth import get_current_user
 from app.api.deps import require_project_access
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.analysis import AnalysisResponse, AnalyzeResponse, ReportResponse
+from app.schemas.analysis import AnalysisResponse, AnalysisSummary, AnalyzeResponse, ReportResponse
 from app.services import analysis_service, report_generator, storage_service
 
 router = APIRouter(tags=["analysis"])
@@ -42,6 +42,34 @@ def get_analysis(
             detail="Analysis not found. Run POST /projects/{project_id}/analyze first.",
         )
     return analysis_service.build_analysis_response(report)
+
+
+@router.get("/projects/{project_id}/analysis/summary", response_model=AnalysisSummary)
+def get_analysis_summary(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AnalysisSummary:
+    """Lightweight summary for dashboard cards — much smaller payload than /analysis."""
+    require_project_access(db, project_id, current_user)
+    report = analysis_service.get_analysis(project_id, db)
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found. Run POST /projects/{project_id}/analyze first.",
+        )
+    reqs = report.requirements or []
+    missing = report.missing_items or []
+    flags = report.risk_flags or []
+    return AnalysisSummary(
+        project_id=project_id,
+        eligibility_score=report.eligibility_score,
+        readiness_score=report.readiness_score,
+        requirement_count=len(reqs),
+        satisfied_count=sum(1 for r in reqs if r.get("status") == "satisfied"),
+        missing_doc_count=len([m for m in missing if m.get("required", False)]),
+        high_risk_count=sum(1 for f in flags if f.get("severity") == "high"),
+    )
 
 
 @router.get("/projects/{project_id}/report", response_model=ReportResponse)

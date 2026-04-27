@@ -124,6 +124,17 @@ export interface ProjectUpdate {
   grant_source_url?: string | null;
 }
 
+/** Lightweight summary returned by GET /projects/{id}/analysis/summary */
+export interface AnalysisSummary {
+  project_id: string;
+  eligibility_score: number;
+  readiness_score: number;
+  requirement_count: number;
+  satisfied_count: number;
+  missing_doc_count: number;
+  high_risk_count: number;
+}
+
 /** Returned by GET /projects/{id}/analysis */
 export interface AnalysisResult {
   project_id: string;
