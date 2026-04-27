@@ -103,6 +103,9 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 2; done
         env:
           JWT_SECRET: ci-test-secret-not-for-production
+          # Disable rate limiting so Playwright tests can call /auth/login
+          # repeatedly without hitting the 10/minute per-IP limit.
+          RATE_LIMIT_ENABLED: "false"
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci
