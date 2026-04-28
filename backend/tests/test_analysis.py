@@ -87,3 +87,59 @@ def test_project_status_updated_after_analyze(client: TestClient, org_id: str, p
 
     after = client.get(f"/projects/{project_id}").json()
     assert after["status"] == "analyzed"
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 — provenance fields
+# ---------------------------------------------------------------------------
+
+def test_analyze_returns_analysis_source(client: TestClient, project_id: str) -> None:
+    """POST /analyze must include analysis_source in the response."""
+    body = client.post(f"/projects/{project_id}/analyze").json()
+    assert "analysis_source" in body
+    assert body["analysis_source"] in ("real_pipeline", "fallback_mock", "seeded_demo")
+
+
+def test_analyze_fallback_includes_reason(client: TestClient, project_id: str) -> None:
+    """With no docs uploaded, analysis falls back and provides a fallback_reason."""
+    body = client.post(f"/projects/{project_id}/analyze").json()
+    # In test environment: no docs => fallback_mock
+    assert body["analysis_source"] == "fallback_mock"
+    assert body["fallback_reason"] is not None
+    assert len(body["fallback_reason"]) > 0
+
+
+def test_get_analysis_exposes_provenance(client: TestClient, project_id: str) -> None:
+    """GET /analysis must expose analysis_source and fallback_reason."""
+    client.post(f"/projects/{project_id}/analyze")
+    body = client.get(f"/projects/{project_id}/analysis").json()
+    assert "analysis_source" in body
+    assert body["analysis_source"] in ("real_pipeline", "fallback_mock", "seeded_demo", None)
+    assert "fallback_reason" in body
+
+
+def test_get_analysis_exposes_diagnostics(client: TestClient, project_id: str) -> None:
+    """GET /analysis includes the diagnostics block."""
+    client.post(f"/projects/{project_id}/analyze")
+    body = client.get(f"/projects/{project_id}/analysis").json()
+    assert "diagnostics" in body
+    diag = body["diagnostics"]
+    assert diag is not None
+    for key in ("uploaded_doc_count", "parsed_doc_count", "chunk_count",
+                "grant_opportunity_found", "extracted_requirement_count",
+                "embeddings_generated"):
+        assert key in diag, f"missing diagnostics key: {key}"
+
+
+def test_get_analysis_summary_includes_source(client: TestClient, project_id: str) -> None:
+    """GET /analysis/summary must include analysis_source."""
+    client.post(f"/projects/{project_id}/analyze")
+    body = client.get(f"/projects/{project_id}/analysis/summary").json()
+    assert "analysis_source" in body
+
+
+def test_provenance_persisted_across_get(client: TestClient, project_id: str) -> None:
+    """analysis_source stored by POST is readable by GET without re-running."""
+    post_body = client.post(f"/projects/{project_id}/analyze").json()
+    get_body = client.get(f"/projects/{project_id}/analysis").json()
+    assert get_body["analysis_source"] == post_body["analysis_source"]

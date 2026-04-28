@@ -19,7 +19,6 @@ The PDF contains only analysis results and user-uploaded document citations.
 import logging
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from fpdf import FPDF
@@ -115,16 +114,7 @@ def generate_and_save(db: Session, project_id: str) -> str:
         raise ValueError(f"No analysis found for project {project_id}. Run /analyze first.")
 
     pdf_bytes = generate_pdf(project, org, report)
-
-    # Persist under the project's upload directory
-    storage_root = Path(storage_service._upload_root())
-    project_dir = storage_root / project_id
-    project_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = project_dir / "report.pdf"
-    pdf_path.write_bytes(pdf_bytes)
-
-    # Storage URL is relative to upload_dir
-    storage_url = f"{project_id}/report.pdf"
+    storage_url = storage_service.save_report(pdf_bytes, project_id)
     report.report_pdf_url = storage_url
     db.flush()
 

@@ -123,6 +123,11 @@ cd backend
 PYTHONPATH=. python -m pytest tests/ -v
 ```
 
+**203 tests** covering auth, organizations (create/delete/ownership), projects,
+document upload and parsing (PDF + TXT), the full AI pipeline (embedding, extraction,
+evidence matching, scoring), analysis provenance, re-analysis, report generation,
+demo account restrictions, and Phase 13–19 features.
+
 Tests use a fresh SQLite in-memory database per test (via the `test_engine`
 fixture in `conftest.py`). Rate limiting is disabled automatically during tests.
 
@@ -154,6 +159,9 @@ cd frontend && npx playwright test
 ```
 
 First time: `npx playwright install chromium`
+
+**22 E2E tests** covering login, dashboard, project detail, analysis tabs, report download,
+provenance banners, document upload/delete, project creation, and edit form.
 
 ---
 

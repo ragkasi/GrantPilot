@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, FolderOpen, Zap, LogOut, UserCircle } from "lucide-react";
+import { LayoutDashboard, Building2, FolderOpen, Zap, LogOut, UserCircle, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearToken } from "@/lib/auth";
 
@@ -54,12 +54,23 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-3 py-3 border-t border-gray-100">
+      <div className="px-3 py-3 border-t border-gray-100 space-y-0.5">
+        <a
+          href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/docs`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          aria-label="View API documentation (opens in new tab)"
+        >
+          <ExternalLink className="w-4 h-4 shrink-0" aria-hidden="true" />
+          API Docs
+        </a>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          aria-label="Sign out of GrantPilot"
         >
-          <LogOut className="w-4 h-4 shrink-0" />
+          <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
           Sign out
         </button>
       </div>

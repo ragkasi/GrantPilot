@@ -1,0 +1,97 @@
+SAMPLE DOCUMENT — FOR GRANTPILOT DEMO USE ONLY
+This is fictional content. Not a real organization.
+
+========================================================
+HORIZON YOUTH COLLECTIVE
+Mission Statement and Organizational Overview
+========================================================
+
+MISSION
+
+Horizon Youth Collective is a 501(c)(3) nonprofit organization dedicated to
+empowering low-income middle and high school students in Columbus, Ohio through
+hands-on STEM education, near-peer mentoring, and career exploration. We believe
+that access to quality STEM programming should not depend on a student's zip code
+or household income.
+
+ORGANIZATIONAL HISTORY
+
+Horizon Youth Collective was founded in 2019 by a group of STEM educators and
+community advocates who saw a persistent gap in out-of-school STEM opportunities
+for students in under-resourced Columbus neighborhoods. We launched our first
+after-school robotics cohort in September 2019 with 18 students and two volunteer
+mentors. By 2024, we served 112 students annually across three program sites.
+
+TAX-EXEMPT STATUS
+
+Horizon Youth Collective received its IRS 501(c)(3) determination in March 2020
+(EIN: 88-0000000). We are in good standing with the IRS and the State of Ohio.
+Our most recent Form 990 was filed for fiscal year 2024. We operate on a
+July 1 – June 30 fiscal year.
+
+ANNUAL BUDGET
+
+Our fiscal year 2025 operating budget is $485,000. Revenue sources include:
+- Foundation grants: 62%
+- Individual donations: 21%
+- Government contracts: 12%
+- Program fees (subsidized): 5%
+
+We maintain a 90-day operating reserve and undergo an annual financial review
+by an independent CPA.
+
+POPULATION SERVED
+
+We serve students in grades 6–12 who meet at least one of the following criteria:
+- Household income at or below 185% of the federal poverty line
+- Enrolled in a Title I school
+- Identified as first-generation college-going
+
+In fiscal year 2024:
+- 112 students served
+- 94% qualify for free or reduced-price lunch
+- 78% are students of color
+- 61% female or non-binary
+- 100% reside in Franklin County, Ohio
+
+PROGRAMS
+
+After-School STEM Cohort (grades 6–8)
+Students meet three afternoons per week, 3:30–6:00 PM, from October through May.
+Programming includes robotics (VEX IQ), data science projects, environmental
+science investigations, and college preparation workshops. Each cohort of 20
+students is supported by two paid STEM coaches and four college-student mentors.
+Average attendance rate: 87%.
+
+Summer STEM Intensive (grades 9–11)
+A 6-week summer program providing 8 hours per day of project-based STEM
+learning. In 2024, 32 students completed 240 hours each of STEM instruction.
+Topics included Python programming, engineering design challenges, and a
+capstone community impact project.
+
+OUTCOMES
+
+Over our first five program years:
+- 96% of students in grades 8–11 report increased interest in STEM careers
+- 88% of eligible alumni enrolled in college (vs. 45% district average)
+- 14 alumni are currently pursuing STEM degrees
+- Students earned 23 regional science fair awards
+
+PARTNERSHIPS
+
+- Columbus City Schools (formal MOU for student recruitment and space)
+- Ohio State University College of Engineering (mentors and facility access)
+- Columbus Metropolitan Library (co-location for two program sites)
+- TechColumbus (employer partners for career days)
+
+STAFFING
+
+Executive Director: 1 FTE
+Program Director: 1 FTE
+STEM Coaches: 2 FTE
+AmeriCorps Members: 2 (part-time)
+College Mentors: 8–12 (volunteer, academic year)
+
+========================================================
+END OF SAMPLE DOCUMENT — FOR GRANTPILOT DEMO USE ONLY
+========================================================

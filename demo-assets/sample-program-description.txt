@@ -1,0 +1,115 @@
+SAMPLE DOCUMENT — FOR GRANTPILOT DEMO USE ONLY
+This is fictional content. Not a real organization.
+
+========================================================
+HORIZON YOUTH COLLECTIVE
+Program Description — After-School STEM Cohort
+Fiscal Year 2025
+========================================================
+
+PROGRAM OVERVIEW
+
+The Horizon Youth Collective After-School STEM Cohort is a year-round, mentor-led
+program providing 60–240 hours of STEM instruction to low-income students in
+grades 6–8 across three Columbus, Ohio sites. The program runs from October
+through May (after-school cohort) and July through August (summer intensive).
+
+PROGRAM GOALS
+
+1. Increase student STEM knowledge and skills as measured by pre/post assessments
+2. Improve student confidence and self-efficacy in STEM subjects
+3. Connect students to STEM career pathways and post-secondary opportunities
+4. Retain students across multiple program years to build long-term outcomes
+
+CURRICULUM
+
+We use a project-based learning model anchored in the Next Generation Science
+Standards (NGSS) and the CSTA K-12 CS Standards. Our curriculum was developed
+in partnership with Ohio State University's College of Engineering and is reviewed
+annually by a volunteer curriculum committee.
+
+Core curriculum modules include:
+- Robotics and Automation (VEX IQ platform, 18 hours)
+- Data Science and Visualization (Python/Pandas, 15 hours)
+- Environmental Science Investigation (original field research, 12 hours)
+- Engineering Design Challenge (human-centered design, 15 hours)
+- Career Exploration and College Preparation (8 hours)
+
+Each module includes a culminating project that students present to peers,
+mentors, and community guests.
+
+SCHEDULE AND DOSAGE
+
+After-School Cohort:
+- Monday, Wednesday, Friday: 3:30 PM – 6:00 PM (2.5 hours per session)
+- October – May: 28 weeks, approximately 70 sessions
+- Total instructional hours per student: ~175 hours
+
+Summer Intensive:
+- Monday – Friday: 9:00 AM – 5:00 PM (8 hours per day)
+- 6 weeks in July and August
+- Total instructional hours per student: 240 hours
+
+Students who complete both programs receive 300+ hours of STEM instruction per
+year, far exceeding the grant's 60-hour minimum requirement.
+
+STAFFING AND MENTORS
+
+Each cohort of 20 students is staffed by:
+- 1 Lead STEM Coach (paid, degree in STEM or education required)
+- 1 Assistant STEM Coach (paid, enrolled in STEM or education program)
+- 4 Near-Peer Mentors (college students, volunteer or AmeriCorps)
+
+All coaches receive 40 hours of onboarding training before the program year and
+8 hours of professional development each semester. Mentor backgrounds include
+computer science, mechanical engineering, biology, and mathematics.
+
+STUDENT RECRUITMENT
+
+Students are recruited through Columbus City Schools Title I middle schools via
+our formal MOU with the district. Referrals come from school counselors,
+teachers, and family outreach events. We maintain a waitlist each year and
+prioritize students who are first-generation college-going or have had prior
+exposure to our programming.
+
+RETENTION
+
+Three-year average retention rate: 74%. Students who complete two or more program
+years are significantly more likely to report STEM career interest and college
+enrollment intentions.
+
+EVALUATION AND DATA COLLECTION
+
+We collect the following data each program year:
+- Pre/post STEM knowledge assessments (validated instrument from SRI Education)
+- Student attendance records (tracked per session)
+- Student surveys on confidence, career interest, and program satisfaction
+- Parent/guardian satisfaction surveys
+- Alumni tracking for college enrollment (via NSLC and direct outreach)
+
+Data is reviewed quarterly by the Program Director and shared with the Board of
+Directors at each quarterly meeting. An independent program evaluator reviews
+our outcomes data annually.
+
+FISCAL YEAR 2024 OUTCOMES
+
+Students served: 112
+Average attendance rate: 87%
+Students completing 60+ hours: 98 (88%)
+Students completing 120+ hours: 71 (63%)
+Pre/post assessment gain (avg): +28 percentile points
+Students reporting increased STEM career interest: 96%
+8th grade alumni enrolled in STEM electives in 9th grade: 81%
+
+BUDGET SUMMARY (FY2025, After-School Cohort + Summer Intensive)
+
+Personnel (coaches, mentors, admin):    $210,000   (65%)
+Curriculum materials and supplies:      $38,000    (12%)
+Facility and transportation:            $29,000    (9%)
+Evaluation and data:                    $18,000    (6%)
+Organizational overhead (15%):          $26,500    (8%)
+Total program budget:                   $321,500
+
+========================================================
+END OF SAMPLE DOCUMENT — FOR GRANTPILOT DEMO USE ONLY
+========================================================

@@ -234,11 +234,155 @@ server {
 
 ## File Storage
 
-Uploaded documents are stored in `UPLOAD_DIR` (default: `uploads/`).
+Uploaded documents and generated PDFs are stored in `UPLOAD_DIR` (default: `uploads/`).
 
 In Docker Compose this is a named volume (`uploads`) that persists across restarts.
-In production, mount this to a persistent volume or swap `storage_service.py` for
-an S3/cloud storage implementation.
+
+### Storage limitations
+
+| Environment | Storage behaviour |
+|---|---|
+| Local dev / SQLite | Files written to `backend/uploads/`. Persist as long as the directory exists. |
+| Docker Compose | Named volume `uploads` — persists across `docker-compose restart`. Lost on `docker-compose down -v`. |
+| Railway (no volume) | **Ephemeral** — container-local `/app/uploads` is lost on every redeploy or restart. |
+| Railway (with volume) | Mount a Railway Volume at `/app/uploads`. Files persist across deploys. |
+
+### Adding a persistent volume on Railway
+
+1. In Railway dashboard → your backend service → **Volumes** tab
+2. Add a volume, mount path: `/app/uploads`
+3. Redeploy — uploads and generated PDFs will survive restarts
+
+### Swapping to S3 or Supabase Storage
+
+`backend/app/services/storage_service.py` defines four public swap points:
+`save_file()`, `save_report()`, `get_file_path()`, and `file_exists()`.
+Replace these four functions with cloud SDK calls; no other code needs to change.
+
+---
+
+## Railway Deployment
+
+Railway is the recommended hosting platform for a portfolio demo. Deploy the
+backend and frontend as separate Railway services backed by a shared Postgres plugin.
+
+### Prerequisites
+
+- Railway account at [railway.app](https://railway.app)
+- GitHub repository connected to Railway
+
+### Step-by-step
+
+#### 1. Create a Railway project
+
+1. New project → **Deploy from GitHub repo**
+2. Select the GrantPilot repository
+
+#### 2. Add a Postgres plugin
+
+In the Railway project, click **+ New** → **Database** → **PostgreSQL**.
+Railway injects `DATABASE_URL` automatically into any service in the same project.
+
+#### 3. Configure the backend service
+
+Set the following environment variables in the Railway backend service:
+
+| Variable | Value |
+|---|---|
+| `JWT_SECRET` | `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` (required for real AI analysis) |
+| `ALLOWED_ORIGINS` | Your frontend Railway URL, e.g. `https://grantpilot-frontend.up.railway.app` |
+| `RUN_MIGRATIONS` | `true` |
+| `UPLOAD_DIR` | `/app/uploads` (default; add a Volume for persistence) |
+
+Set **Root Directory** to `backend/` and **Dockerfile Path** to `Dockerfile`.
+
+The `entrypoint.sh` will run `alembic upgrade head` before the server starts.
+
+#### 4. Configure the frontend service
+
+Add a second service from the same repo. Set:
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Your backend Railway URL, e.g. `https://grantpilot-backend.up.railway.app` |
+
+Set **Root Directory** to `frontend/` and **Dockerfile Path** to `Dockerfile`.
+
+#### 5. First-deploy migration note
+
+If your Railway Postgres was previously initialized by the app without Alembic
+(i.e. no `alembic_version` table), stamp it first:
+
+```bash
+# Get the PUBLIC_URL from Railway dashboard → Postgres → Connect
+DATABASE_URL=<public_url> cd backend && python -m alembic stamp head
+DATABASE_URL=<public_url> python -m alembic upgrade head
+```
+
+For a fresh Postgres (no existing tables), `alembic upgrade head` works directly.
+
+#### 6. Verify the deployment
+
+```bash
+python scripts/demo_check.py --api-url https://your-backend.up.railway.app
+```
+
+---
+
+## Local Demo Setup
+
+The fastest way to get a working local demo:
+
+```bash
+# 1. Clone
+git clone https://github.com/ragkasi/GrantPilot.git && cd GrantPilot
+
+# 2. Start the full stack
+cp backend/.env.example backend/.env
+# Edit backend/.env: set JWT_SECRET and optionally ANTHROPIC_API_KEY
+docker-compose up --build
+
+# 3. Verify
+python scripts/demo_check.py
+```
+
+The stack auto-seeds the BrightPath demo project on first start.
+
+**Demo credentials:** `demo@grantpilot.local` / `DemoGrantPilot123!`
+
+### Enabling real AI analysis locally
+
+1. Add `ANTHROPIC_API_KEY=sk-ant-...` to your `.env`
+2. Upload the files in `demo-assets/` to a new project (see `demo-assets/README.md`)
+3. Click **Run Analysis** — the provenance banner will show `real_pipeline`
+
+---
+
+## Demo Reset
+
+To wipe and reseed the demo project back to a clean state:
+
+```bash
+# With Docker Compose running
+docker-compose exec backend python scripts/reset_demo.py
+
+# Or locally without Docker (SQLite dev)
+cd backend
+python scripts/reset_demo.py
+```
+
+This clears all documents, analysis, and chunk data for the demo project and
+re-runs the seed. The demo user, organization, and project ID are preserved.
+
+### Full wipe (Docker only)
+
+To reset the entire database and all uploads:
+
+```bash
+docker-compose down -v          # removes named volumes (postgres_data, uploads)
+docker-compose up --build       # rebuilds from scratch, re-seeds on startup
+```
 
 ---
 
@@ -248,9 +392,9 @@ The `.github/workflows/ci.yml` workflow runs automatically on every push to `mai
 
 | Job | Trigger | What it does |
 |-----|---------|--------------|
-| `backend-tests` | Every push/PR | Runs pytest (152 tests) |
+| `backend-tests` | Every push/PR | Runs pytest (180 tests) |
 | `frontend-checks` | Every push/PR | Typecheck + production build |
-| `e2e-tests` | `main` branch only | Playwright happy-path tests (19 tests) |
+| `e2e-tests` | `main` branch only | Playwright happy-path tests (22 tests) |
 
 ### Required GitHub Secrets
 

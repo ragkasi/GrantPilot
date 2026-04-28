@@ -73,22 +73,24 @@ export function RequirementsTable({ requirements }: { requirements: Requirement[
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full" aria-label="Grant requirements checklist">
         <thead>
           <tr className="border-b border-gray-100">
-            <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-28">
+            <th scope="col" className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-28">
               Status
             </th>
-            <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">
+            <th scope="col" className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3">
               Requirement
             </th>
-            <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-36">
+            <th scope="col" className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-36">
               Type
             </th>
-            <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-36">
+            <th scope="col" className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 py-3 w-36">
               Confidence
             </th>
-            <th className="w-10 px-4" />
+            <th scope="col" className="w-10 px-4">
+              <span className="sr-only">Evidence</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -96,6 +98,7 @@ export function RequirementsTable({ requirements }: { requirements: Requirement[
             <Fragment key={req.id}>
               <tr
                 onClick={() => req.evidence.length > 0 && toggle(req.id)}
+                aria-expanded={req.evidence.length > 0 ? expanded.has(req.id) : undefined}
                 className={cn(
                   "border-b border-gray-50 transition-colors",
                   req.evidence.length > 0

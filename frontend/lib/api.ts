@@ -7,6 +7,7 @@
 import type {
   AnalysisResult,
   AnalysisSummary,
+  AnalysisSource,
   Document,
   DocumentSummary,
   Organization,
@@ -106,7 +107,7 @@ export async function register(email: string, password: string): Promise<string>
   return data.access_token;
 }
 
-export async function getMe(): Promise<{ id: string; email: string; created_at: string }> {
+export async function getMe(): Promise<{ id: string; email: string; created_at: string; is_demo: boolean }> {
   return apiFetch("/auth/me");
 }
 
@@ -127,6 +128,10 @@ export async function createOrganization(data: OrganizationCreate): Promise<{ id
 
 export async function getOrganization(id: string): Promise<Organization> {
   return apiFetch<Organization>(`/organizations/${id}`);
+}
+
+export async function deleteOrganization(orgId: string): Promise<void> {
+  await apiFetch(`/organizations/${orgId}`, { method: "DELETE" });
 }
 
 export async function listOrgProjects(orgId: string): Promise<Project[]> {
@@ -278,7 +283,7 @@ export async function uploadDocument(
 
 export async function runAnalysis(
   projectId: string,
-): Promise<{ project_id: string; status: string }> {
+): Promise<{ project_id: string; status: string; analysis_source?: AnalysisSource | null; fallback_reason?: string | null }> {
   return apiFetch(`/projects/${projectId}/analyze`, { method: "POST" });
 }
 

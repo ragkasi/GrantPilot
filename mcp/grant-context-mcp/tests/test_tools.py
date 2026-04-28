@@ -24,7 +24,7 @@ _BACKEND_DIR = _REPO_ROOT / "backend"
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from app.models import analysis, chunk, document, organization, project  # noqa: F401
+from app.models import analysis, chunk, document, organization, project, user  # noqa: F401
 from app.models.base import Base
 
 
@@ -376,3 +376,145 @@ class TestGeneratePacket:
         import server as srv
         with pytest.raises(ValueError):
             srv.generate_packet("../../../evil")
+
+
+# ---------------------------------------------------------------------------
+# Tests: match_requirement_to_evidence
+# ---------------------------------------------------------------------------
+
+def _seed_requirement_with_match(db, project_id="proj_mcp01"):
+    """Add a GrantRequirement + EvidenceMatch to the test DB."""
+    from app.models.analysis import EvidenceMatch, GrantRequirement
+
+    req_id = "req_mcp_test01"
+    if db.get(GrantRequirement, req_id) is None:
+        db.add(GrantRequirement(
+            id=req_id,
+            project_id=project_id,
+            requirement_type="eligibility",
+            requirement_text="Applicant must be a registered 501(c)(3) nonprofit.",
+            importance="required",
+        ))
+        db.flush()
+
+    ev_id = "ev_mcp_test01"
+    existing_ev = (
+        db.query(EvidenceMatch)
+        .filter(EvidenceMatch.requirement_id == req_id)
+        .first()
+    )
+    if existing_ev is None:
+        db.add(EvidenceMatch(
+            id=ev_id,
+            requirement_id=req_id,
+            document_chunk_id=None,
+            status="satisfied",
+            match_score=0.91,
+            explanation="Mission statement confirms 501(c)(3) status.",
+        ))
+    db.commit()
+    return req_id
+
+
+class TestMatchRequirementToEvidence:
+    def test_cached_match_returned_correctly(self, db, monkeypatch, tmp_path):
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        req_id = _seed_requirement_with_match(db)
+        import server as srv
+        result = json.loads(srv.match_requirement_to_evidence("proj_mcp01", req_id))
+
+        assert result["requirement_id"] == req_id
+        assert result["status"] == "satisfied"
+        assert result["confidence"] == pytest.approx(0.91, abs=1e-3)
+        assert "explanation" in result
+        assert "citations" in result
+        assert result["source"] == "cached"
+
+    def test_cached_match_includes_requirement_text(self, db, monkeypatch, tmp_path):
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        req_id = _seed_requirement_with_match(db)
+        import server as srv
+        result = json.loads(srv.match_requirement_to_evidence("proj_mcp01", req_id))
+        assert "501(c)(3)" in result["requirement_text"]
+
+    def test_unknown_requirement_returns_error(self, db, monkeypatch, tmp_path):
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        import server as srv
+        result = json.loads(
+            srv.match_requirement_to_evidence("proj_mcp01", "req_does_not_exist")
+        )
+        assert "error" in result
+
+    def test_requirement_wrong_project_returns_error(self, db, monkeypatch, tmp_path):
+        """A requirement that belongs to a different project must be rejected."""
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        req_id = _seed_requirement_with_match(db)
+        # Seed a second project
+        from app.models.organization import Organization
+        from app.models.project import Project
+        if db.get(Organization, "org_other") is None:
+            db.add(Organization(id="org_other", name="Other Org", mission="Other.",
+                                location="X", nonprofit_type="501(c)(3)",
+                                annual_budget=1000, population_served="Other"))
+        if db.get(Project, "proj_other") is None:
+            db.add(Project(id="proj_other", organization_id="org_other",
+                           grant_name="Other Grant", status="draft"))
+        db.commit()
+        import server as srv
+        # req_id belongs to proj_mcp01 — asking for it under proj_other must error
+        result = json.loads(srv.match_requirement_to_evidence("proj_other", req_id))
+        assert "error" in result
+
+    def test_invalid_project_id_raises(self):
+        import server as srv
+        with pytest.raises(ValueError):
+            srv.match_requirement_to_evidence("../../evil", "req_abc")
+
+    def test_invalid_requirement_id_raises(self):
+        import server as srv
+        with pytest.raises(ValueError):
+            srv.match_requirement_to_evidence("proj_mcp01", "req; DROP TABLE")
+
+    def test_output_has_no_secrets(self, db, monkeypatch, tmp_path):
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        req_id = _seed_requirement_with_match(db)
+        import server as srv
+        result_str = srv.match_requirement_to_evidence("proj_mcp01", req_id)
+        assert "API_KEY" not in result_str
+        assert "DATABASE_URL" not in result_str
+
+
+# ---------------------------------------------------------------------------
+# Tests: provenance fields in generate_readiness_checklist
+# ---------------------------------------------------------------------------
+
+class TestProvenanceInChecklist:
+    def test_checklist_includes_analysis_source_field(self, db, monkeypatch, tmp_path):
+        """generate_readiness_checklist must expose analysis_source (Phase 14 field)."""
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        import server as srv
+        result = json.loads(srv.generate_readiness_checklist("proj_mcp01"))
+        # analysis_source key must be present (may be None for legacy rows)
+        assert "analysis_source" in result
+
+    def test_checklist_includes_fallback_reason_field(self, db, monkeypatch, tmp_path):
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        import server as srv
+        result = json.loads(srv.generate_readiness_checklist("proj_mcp01"))
+        assert "fallback_reason" in result
+
+    def test_checklist_analysis_source_seeded_is_none_for_legacy(self, db, monkeypatch, tmp_path):
+        """Rows seeded without analysis_source return None (backward-compatible)."""
+        _patch_db(monkeypatch, db, tmp_path)
+        _seed_project(db)
+        import server as srv
+        result = json.loads(srv.generate_readiness_checklist("proj_mcp01"))
+        # The _seed_project fixture doesn't set analysis_source, so it's None
+        assert result["analysis_source"] is None

@@ -33,6 +33,12 @@ class ChunkData:
     chunk_text: str
 
 
+def parse_txt_bytes(content: bytes) -> list[ParsedPage]:
+    """Parse raw plain-text bytes into a single ParsedPage (always page 1)."""
+    text = content.decode("utf-8", errors="replace").strip()
+    return [ParsedPage(page_number=1, text=text)] if text else []
+
+
 def parse_pdf(file_path: Path) -> list[ParsedPage]:
     """Extract text from each page of a PDF. Returns pages with non-empty text."""
     pages: list[ParsedPage] = []

@@ -1,11 +1,17 @@
 """Local file storage abstraction.
 
-Stores uploaded files under upload_dir/{project_id}/{doc_id}_{filename}.
-The storage_url saved to the DB is the path relative to upload_dir, so it
-can be rehydrated with get_file_path() without baking in absolute paths.
+All callers must go through the public functions below — never access
+_upload_root() directly. To swap to S3 or Supabase Storage, replace the
+four public functions; no other code needs to change.
 
-Swap this module for an S3/Supabase implementation in production by replacing
-save_file() and get_file_path() — the rest of the codebase stays the same.
+Public interface (swap points):
+  save_file()   — persist an uploaded document; returns storage_url
+  save_report() — persist a generated PDF report; returns storage_url
+  get_file_path() — resolve storage_url → absolute Path (local only)
+  file_exists() — check whether a storage_url resolves to an existing file
+
+storage_url format: "{project_id}/{filename}" — relative to upload_dir,
+so it stays portable across machines and container restarts.
 """
 from pathlib import Path
 
@@ -17,19 +23,28 @@ def _upload_root() -> Path:
 
 
 def save_file(content: bytes, project_id: str, doc_id: str, filename: str) -> str:
-    """Persist bytes to disk and return the storage_url (relative path)."""
+    """Persist an uploaded document and return its storage_url."""
     dest_dir = _upload_root() / project_id
     dest_dir.mkdir(parents=True, exist_ok=True)
-
-    # Prefix filename with doc_id to avoid collisions from same-named uploads.
+    # Prefix with doc_id to avoid collisions from same-named uploads.
     safe_name = f"{doc_id}_{filename}"
-    dest = dest_dir / safe_name
-    dest.write_bytes(content)
-
-    # Return path relative to upload_dir so DB records are not host-absolute.
+    (_upload_root() / project_id / safe_name).write_bytes(content)
     return f"{project_id}/{safe_name}"
 
 
+def save_report(pdf_bytes: bytes, project_id: str) -> str:
+    """Persist a generated PDF report and return its storage_url."""
+    dest_dir = _upload_root() / project_id
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    (dest_dir / "report.pdf").write_bytes(pdf_bytes)
+    return f"{project_id}/report.pdf"
+
+
 def get_file_path(storage_url: str) -> Path:
-    """Resolve a storage_url back to an absolute Path on disk."""
+    """Resolve a storage_url to an absolute Path on disk."""
     return _upload_root() / storage_url
+
+
+def file_exists(storage_url: str) -> bool:
+    """Return True if the storage_url resolves to an existing file."""
+    return get_file_path(storage_url).exists()

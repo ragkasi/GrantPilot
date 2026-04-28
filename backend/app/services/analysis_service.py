@@ -2,14 +2,15 @@
 Grant analysis orchestrator.
 
 Dispatch logic:
-  - Real pipeline: when a grant_opportunity document is uploaded AND
-    ANTHROPIC_API_KEY is configured.
-  - Mock fallback: all other cases (no grant doc, no key, or pipeline error).
-    The mock returns deterministic BrightPath demo data and is also used
-    for the demo seed so the app is demo-stable without any API credentials.
+  - real_pipeline: grant_opportunity document uploaded + ANTHROPIC_API_KEY set.
+    Claude extracts requirements, matches evidence in uploaded docs, scores.
+  - fallback_mock: any other case — missing grant doc, missing API key, or
+    pipeline error. Returns deterministic BrightPath demo data.
+  - seeded_demo: set externally by seed.py for the startup demo project.
 
-Results are always persisted to the ReadinessReport table so GET /analysis
-has a single consistent source of truth.
+Results are always persisted to ReadinessReport so GET /analysis is consistent.
+analysis_source and fallback_reason are stored on the report and returned in
+the API response so the UI can surface provenance transparently.
 """
 import logging
 import uuid
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.analysis import ReadinessReport
 from app.schemas.analysis import (
+    AnalysisDiagnostics,
     AnalysisResponse,
     Citation,
     DraftAnswer,
@@ -30,39 +32,90 @@ from app.schemas.analysis import (
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Fallback reason constants (safe for user display)
+# ---------------------------------------------------------------------------
+REASON_NO_GRANT_DOC = (
+    "No Grant Opportunity Document uploaded. "
+    "Add the grant RFP or announcement as a Grant Opportunity Document, then Re-analyze."
+)
+REASON_NO_API_KEY = (
+    "AI analysis is not enabled on this server. "
+    "Sample results are shown — contact the administrator to enable real analysis."
+)
+REASON_NO_DOCS = (
+    "No documents uploaded yet. "
+    "Add nonprofit documents and a Grant Opportunity Document, then Re-analyze."
+)
+REASON_NO_REQUIREMENTS = (
+    "No requirements could be extracted from the grant document. "
+    "Ensure the file contains readable text (PDF or TXT), then Re-analyze."
+)
+REASON_PIPELINE_ERROR = (
+    "The AI pipeline encountered an error and fell back to sample data. "
+    "Try Re-analyzing — if the problem persists, ensure your documents are readable."
+)
+
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def run_analysis(project_id: str, db: Session) -> None:
-    """Orchestrate grant analysis for a project and persist results to DB."""
+def run_analysis(project_id: str, db: Session) -> str:
+    """Orchestrate grant analysis. Returns the analysis_source that was used."""
     from app.models.document import Document
 
-    has_grant_doc = (
+    docs = (
         db.query(Document)
-        .filter(
-            Document.project_id == project_id,
-            Document.document_type == "grant_opportunity",
-            Document.status.in_(["parsed", "stored"]),
-        )
-        .first()
-    ) is not None
+        .filter(Document.project_id == project_id)
+        .all()
+    )
+    has_uploaded_docs = len(docs) > 0
 
+    grant_doc = next(
+        (d for d in docs
+         if d.document_type == "grant_opportunity"
+         and d.status in ("parsed", "stored")),
+        None,
+    )
+    has_grant_doc = grant_doc is not None
     api_key_set = bool(settings.anthropic_api_key)
 
-    if has_grant_doc and api_key_set:
-        try:
-            _run_real_analysis(project_id, db)
-            return
-        except Exception as exc:
-            logger.error(
-                "Real analysis failed for project %s, falling back to mock: %s",
-                project_id,
-                exc,
-            )
+    logger.info(
+        "[%s] Analysis dispatch: docs=%d grant_doc=%s api_key=%s",
+        project_id, len(docs), has_grant_doc, api_key_set,
+    )
 
-    _run_mock_analysis(project_id, db)
+    if not has_uploaded_docs:
+        reason = REASON_NO_DOCS
+        logger.info("[%s] Fallback (no_docs): %s", project_id, reason)
+        _run_mock_analysis(project_id, db, fallback_reason=reason)
+        return "fallback_mock"
+
+    if not has_grant_doc:
+        reason = REASON_NO_GRANT_DOC
+        logger.info("[%s] Fallback (no_grant_doc): %s", project_id, reason)
+        _run_mock_analysis(project_id, db, fallback_reason=reason)
+        return "fallback_mock"
+
+    if not api_key_set:
+        reason = REASON_NO_API_KEY
+        logger.info("[%s] Fallback (no_api_key): %s", project_id, reason)
+        _run_mock_analysis(project_id, db, fallback_reason=reason)
+        return "fallback_mock"
+
+    # All conditions met — attempt real pipeline
+    try:
+        _run_real_analysis(project_id, db)
+        logger.info("[%s] Real pipeline completed successfully.", project_id)
+        return "real_pipeline"
+    except Exception as exc:
+        logger.error(
+            "[%s] Real pipeline failed, falling back to mock: %s",
+            project_id, exc,
+        )
+        _run_mock_analysis(project_id, db, fallback_reason=REASON_PIPELINE_ERROR)
+        return "fallback_mock"
 
 
 def get_analysis(project_id: str, db: Session) -> ReadinessReport | None:
@@ -73,7 +126,8 @@ def get_analysis(project_id: str, db: Session) -> ReadinessReport | None:
     )
 
 
-def build_analysis_response(report: ReadinessReport) -> AnalysisResponse:
+def build_analysis_response(report: ReadinessReport, db: Session | None = None) -> AnalysisResponse:
+    diagnostics = _compute_diagnostics(report.project_id, db) if db else None
     return AnalysisResponse(
         project_id=report.project_id,
         eligibility_score=report.eligibility_score,
@@ -82,6 +136,9 @@ def build_analysis_response(report: ReadinessReport) -> AnalysisResponse:
         missing_documents=[MissingDocument(**m) for m in report.missing_items],
         risk_flags=[RiskFlag(**f) for f in report.risk_flags],
         draft_answers=[DraftAnswer(**d) for d in report.draft_answers],
+        analysis_source=report.analysis_source,  # type: ignore[arg-type]
+        fallback_reason=report.fallback_reason,
+        diagnostics=diagnostics,
     )
 
 
@@ -98,35 +155,43 @@ def _run_real_analysis(project_id: str, db: Session) -> None:
         readiness_scorer,
     )
 
-    # 1. Embed all unembedded chunks in the project
-    embedding_service.embed_chunks_for_project(db, project_id)
+    logger.info("[%s] Stage 1/6: Embedding document chunks...", project_id)
+    embedded_count = embedding_service.embed_chunks_for_project(db, project_id)
+    logger.info("[%s]   Embedded %d chunks.", project_id, embedded_count)
 
-    # 2. Extract grant requirements from the grant opportunity document
+    logger.info("[%s] Stage 2/6: Extracting grant requirements...", project_id)
     requirements = grant_extractor.extract_requirements(db, project_id)
+    logger.info("[%s]   Extracted %d requirements.", project_id, len(requirements))
 
     if not requirements:
-        logger.warning("No requirements extracted for project %s; falling back.", project_id)
-        _run_mock_analysis(project_id, db)
+        logger.warning("[%s] No requirements extracted — falling back to mock.", project_id)
+        _run_mock_analysis(project_id, db, fallback_reason=REASON_NO_REQUIREMENTS)
         return
 
-    # 3. Match each requirement to nonprofit evidence chunks
+    logger.info("[%s] Stage 3/6: Matching requirements to evidence...", project_id)
     match_results = evidence_matcher.match_all_requirements(db, requirements, project_id)
+    logger.info("[%s]   Matched %d requirements.", project_id, len(match_results))
 
-    # 4. Score deterministically (no LLM)
+    logger.info("[%s] Stage 4/6: Computing scores...", project_id)
     matches_only = {rid: result[0] for rid, result in match_results.items()}
     eligibility_score, readiness_score = readiness_scorer.compute_scores(requirements, matches_only)
+    logger.info(
+        "[%s]   Eligibility=%d  Readiness=%d",
+        project_id, eligibility_score, readiness_score,
+    )
 
-    # 5. Generate risk flags and missing documents (deterministic)
+    logger.info("[%s] Stage 5/6: Generating risk flags and missing docs...", project_id)
     risk_flags = readiness_scorer.generate_risk_flags(requirements, matches_only)
     missing_docs = readiness_scorer.generate_missing_documents(requirements, matches_only)
+    logger.info(
+        "[%s]   %d risk flags, %d missing docs.", project_id, len(risk_flags), len(missing_docs)
+    )
 
-    # 6. Build requirement result dicts (with evidence citations)
+    logger.info("[%s] Stage 6/6: Drafting answers for narrative questions...", project_id)
     req_results = readiness_scorer.build_requirement_results(requirements, match_results)
-
-    # 7. Draft answers for narrative questions
     draft_answers = application_drafter.draft_answers(db, project_id, requirements, match_results)
+    logger.info("[%s]   Drafted %d answers.", project_id, len(draft_answers))
 
-    # 8. Persist
     _upsert_report(
         db=db,
         project_id=project_id,
@@ -136,11 +201,12 @@ def _run_real_analysis(project_id: str, db: Session) -> None:
         missing_docs=[m.model_dump() for m in missing_docs],
         risk_flags=[f.model_dump() for f in risk_flags],
         draft_answers=[d.model_dump() for d in draft_answers],
+        analysis_source="real_pipeline",
     )
 
 
 # ---------------------------------------------------------------------------
-# Mock fallback — BrightPath demo data (mirrors frontend/lib/mock-data.ts)
+# Mock fallback — BrightPath demo data
 # ---------------------------------------------------------------------------
 
 _MOCK_REQUIREMENTS: list[dict] = [
@@ -231,7 +297,12 @@ _MOCK_DRAFT_ANSWERS: list[dict] = [
 ]
 
 
-def _run_mock_analysis(project_id: str, db: Session) -> None:
+def _run_mock_analysis(
+    project_id: str,
+    db: Session,
+    fallback_reason: str | None = None,
+    analysis_source: str = "fallback_mock",
+) -> None:
     _upsert_report(
         db=db,
         project_id=project_id,
@@ -241,6 +312,52 @@ def _run_mock_analysis(project_id: str, db: Session) -> None:
         missing_docs=_MOCK_MISSING_DOCS,
         risk_flags=_MOCK_RISK_FLAGS,
         draft_answers=_MOCK_DRAFT_ANSWERS,
+        analysis_source=analysis_source,
+        fallback_reason=fallback_reason,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics (computed on-the-fly, no secrets or raw prompts exposed)
+# ---------------------------------------------------------------------------
+
+def _compute_diagnostics(project_id: str, db: Session) -> AnalysisDiagnostics:
+    from app.models.chunk import DocumentChunk
+    from app.models.document import Document
+    from app.models.analysis import GrantRequirement
+
+    docs = db.query(Document).filter(Document.project_id == project_id).all()
+    parsed_docs = [d for d in docs if d.status == "parsed"]
+    grant_doc_found = any(d.document_type == "grant_opportunity" for d in docs)
+
+    chunk_count = (
+        db.query(DocumentChunk)
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .filter(Document.project_id == project_id)
+        .count()
+    )
+    embedded_count = (
+        db.query(DocumentChunk)
+        .join(Document, DocumentChunk.document_id == Document.id)
+        .filter(
+            Document.project_id == project_id,
+            DocumentChunk.embedding_json.isnot(None),
+        )
+        .count()
+    )
+    req_count = (
+        db.query(GrantRequirement)
+        .filter(GrantRequirement.project_id == project_id)
+        .count()
+    )
+
+    return AnalysisDiagnostics(
+        uploaded_doc_count=len(docs),
+        parsed_doc_count=len(parsed_docs),
+        chunk_count=chunk_count,
+        grant_opportunity_found=grant_doc_found,
+        extracted_requirement_count=req_count,
+        embeddings_generated=embedded_count > 0,
     )
 
 
@@ -257,6 +374,8 @@ def _upsert_report(
     missing_docs: list[dict],
     risk_flags: list[dict],
     draft_answers: list[dict],
+    analysis_source: str = "fallback_mock",
+    fallback_reason: str | None = None,
 ) -> ReadinessReport:
     existing = (
         db.query(ReadinessReport)
@@ -271,8 +390,9 @@ def _upsert_report(
         existing.missing_items = missing_docs
         existing.risk_flags = risk_flags
         existing.draft_answers = draft_answers
-        # Clear stale PDF so the next download regenerates with fresh data
-        existing.report_pdf_url = None
+        existing.analysis_source = analysis_source
+        existing.fallback_reason = fallback_reason
+        existing.report_pdf_url = None  # clear stale PDF
         db.flush()
         return existing
 
@@ -285,6 +405,8 @@ def _upsert_report(
         missing_items=missing_docs,
         risk_flags=risk_flags,
         draft_answers=draft_answers,
+        analysis_source=analysis_source,
+        fallback_reason=fallback_reason,
     )
     db.add(report)
     db.flush()

@@ -163,6 +163,34 @@ test.describe("Project detail (analyzed)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Provenance banner
+// ---------------------------------------------------------------------------
+
+test.describe("Provenance banner", () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page);
+    await page.goto(`/projects/${DEMO_PROJECT_ID}`);
+    await page.waitForSelector("text=Eligibility Score");
+  });
+
+  test("provenance banner is visible on the analysis page", async ({ page }) => {
+    await expect(page.locator("[data-testid='provenance-banner']")).toBeVisible({ timeout: 8000 });
+  });
+
+  test("demo project shows seeded_demo or fallback_mock banner", async ({ page }) => {
+    const banner = page.locator("[data-testid='provenance-banner']");
+    await expect(banner).toBeVisible({ timeout: 8000 });
+    const source = await banner.getAttribute("data-analysis-source");
+    expect(["seeded_demo", "fallback_mock"]).toContain(source);
+  });
+
+  test("real_pipeline banner is not shown for demo project", async ({ page }) => {
+    const realBanner = page.locator("[data-analysis-source='real_pipeline']");
+    await expect(realBanner).not.toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Report download
 // ---------------------------------------------------------------------------
 

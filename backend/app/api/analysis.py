@@ -23,9 +23,15 @@ def analyze_project(
     from app.services import project_service
     require_project_access(db, project_id, current_user)
     project_service.update_project_status(db, project_id, "analyzing")
-    analysis_service.run_analysis(project_id, db)
+    analysis_source = analysis_service.run_analysis(project_id, db)
     project_service.update_project_status(db, project_id, "analyzed")
-    return AnalyzeResponse(project_id=project_id, status="analyzed")
+    report = analysis_service.get_analysis(project_id, db)
+    return AnalyzeResponse(
+        project_id=project_id,
+        status="analyzed",
+        analysis_source=analysis_source,  # type: ignore[arg-type]
+        fallback_reason=report.fallback_reason if report else None,
+    )
 
 
 @router.get("/projects/{project_id}/analysis", response_model=AnalysisResponse)
@@ -41,7 +47,7 @@ def get_analysis(
             status_code=404,
             detail="Analysis not found. Run POST /projects/{project_id}/analyze first.",
         )
-    return analysis_service.build_analysis_response(report)
+    return analysis_service.build_analysis_response(report, db)
 
 
 @router.get("/projects/{project_id}/analysis/summary", response_model=AnalysisSummary)
@@ -69,6 +75,7 @@ def get_analysis_summary(
         satisfied_count=sum(1 for r in reqs if r.get("status") == "satisfied"),
         missing_doc_count=len([m for m in missing if m.get("required", False)]),
         high_risk_count=sum(1 for f in flags if f.get("severity") == "high"),
+        analysis_source=report.analysis_source,  # type: ignore[arg-type]
     )
 
 
@@ -99,10 +106,8 @@ def download_report(
             detail="No analysis found. Run POST /projects/{project_id}/analyze first.",
         )
 
-    if report.report_pdf_url:
-        pdf_path = storage_service.get_file_path(report.report_pdf_url)
-        if not pdf_path.exists():
-            report.report_pdf_url = None
+    if report.report_pdf_url and not storage_service.file_exists(report.report_pdf_url):
+        report.report_pdf_url = None
 
     if not report.report_pdf_url:
         try:
@@ -110,13 +115,12 @@ def download_report(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    pdf_path = storage_service.get_file_path(report.report_pdf_url)
-    if not pdf_path.exists():
+    if not storage_service.file_exists(report.report_pdf_url):
         raise HTTPException(status_code=500, detail="Report file could not be found after generation.")
 
     filename = f"grant_readiness_report_{project_id[:8]}.pdf"
     return FileResponse(
-        path=str(pdf_path),
+        path=str(storage_service.get_file_path(report.report_pdf_url)),
         media_type="application/pdf",
         filename=filename,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

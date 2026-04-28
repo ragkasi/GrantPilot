@@ -95,27 +95,18 @@ class TestChangePassword:
             if saved:
                 client.headers["Authorization"] = saved
 
-    def test_demo_user_can_change_password(self, client: TestClient) -> None:
-        """Demo user can use change-password but we restore afterward."""
+    def test_demo_user_cannot_change_password(self, client: TestClient) -> None:
+        """Demo account password changes are blocked (Phase 19)."""
         token = client.post(
             "/auth/login",
             json={"email": "demo@grantpilot.local", "password": "DemoGrantPilot123!"},
         ).json()["access_token"]
-        h = {"Authorization": f"Bearer {token}"}
-
         resp = client.post(
             "/auth/change-password",
             json={"current_password": "DemoGrantPilot123!", "new_password": "TempDemo1234!"},
-            headers=h,
+            headers={"Authorization": f"Bearer {token}"},
         )
-        assert resp.status_code == 204
-
-        # Restore original password so other tests still pass
-        client.post(
-            "/auth/change-password",
-            json={"current_password": "TempDemo1234!", "new_password": "DemoGrantPilot123!"},
-            headers=h,
-        )
+        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------

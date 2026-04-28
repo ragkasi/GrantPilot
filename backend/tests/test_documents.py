@@ -95,10 +95,10 @@ def test_upload_invalid_pdf_bytes_marks_parse_failed(
     assert resp.json()["status"] == "parse_failed"
 
 
-def test_upload_non_pdf_stored_not_parsed(
+def test_upload_txt_is_parsed(
     client: TestClient, org_id: str, project_id: str
 ) -> None:
-    """A .txt file should be stored but not parsed (no chunks created by current pipeline)."""
+    """A .txt file should be parsed into chunks (TXT parsing was added in Phase 16)."""
     resp = client.post(
         "/documents/upload",
         data={
@@ -106,10 +106,10 @@ def test_upload_non_pdf_stored_not_parsed(
             "project_id": project_id,
             "document_type": "mission_statement",
         },
-        files={"file": ("mission.txt", io.BytesIO(b"Our mission is to serve."), "text/plain")},
+        files={"file": ("mission.txt", io.BytesIO(b"Our mission is to serve youth in Ohio through STEM education."), "text/plain")},
     )
     assert resp.status_code == 201
-    assert resp.json()["status"] == "stored"
+    assert resp.json()["status"] == "parsed"
 
 
 # ---------------------------------------------------------------------------

@@ -91,6 +91,7 @@ def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
         id=current_user.id,
         email=current_user.email,
         created_at=current_user.created_at,
+        is_demo=current_user.is_demo,
     )
 
 
@@ -100,7 +101,14 @@ def change_password(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Change the current user's password. Requires the correct current password."""
+    """Change the current user's password. Requires the correct current password.
+    Disabled for the demo account.
+    """
+    if current_user.is_demo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password changes are disabled for the demo account.",
+        )
     success = user_service.change_password(
         db, current_user, body.current_password, body.new_password
     )

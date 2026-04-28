@@ -3,6 +3,7 @@ export type RequirementType = "eligibility" | "required_document" | "budget" | "
 export type RequirementImportance = "required" | "preferred" | "optional";
 export type RiskSeverity = "high" | "medium" | "low";
 export type ProjectStatus = "draft" | "documents_uploaded" | "analyzing" | "analyzed" | "report_generated" | "error";
+export type AnalysisSource = "real_pipeline" | "fallback_mock" | "seeded_demo";
 
 export interface Citation {
   document_name: string;
@@ -133,6 +134,16 @@ export interface AnalysisSummary {
   satisfied_count: number;
   missing_doc_count: number;
   high_risk_count: number;
+  analysis_source?: AnalysisSource | null;
+}
+
+export interface AnalysisDiagnostics {
+  uploaded_doc_count: number;
+  parsed_doc_count: number;
+  chunk_count: number;
+  grant_opportunity_found: boolean;
+  extracted_requirement_count: number;
+  embeddings_generated: boolean;
 }
 
 /** Returned by GET /projects/{id}/analysis */
@@ -144,4 +155,7 @@ export interface AnalysisResult {
   missing_documents: MissingDocument[];
   risk_flags: RiskFlag[];
   draft_answers: DraftAnswer[];
+  analysis_source?: AnalysisSource | null;
+  fallback_reason?: string | null;
+  diagnostics?: AnalysisDiagnostics | null;
 }

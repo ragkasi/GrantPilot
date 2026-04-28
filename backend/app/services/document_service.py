@@ -79,7 +79,7 @@ def upload_document(
     doc.storage_url = storage_url
     doc.status = "stored"
 
-    # Parse and chunk PDFs
+    # Parse and chunk text-bearing files
     suffix = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
     if suffix == ".pdf":
         file_path = storage_service.get_file_path(storage_url)
@@ -100,7 +100,25 @@ def upload_document(
             doc.page_count = max((p.page_number for p in pages), default=0) if pages else 0
             doc.status = "parsed"
         except ValueError:
-            # Malformed or unreadable PDF — keep file stored, mark status accordingly
+            doc.status = "parse_failed"
+    elif suffix == ".txt":
+        try:
+            pages = document_parser.parse_txt_bytes(content)
+            chunks = document_parser.chunk_pages(pages, doc_id, filename)
+            for chunk in chunks:
+                db.add(
+                    DocumentChunk(
+                        id=_chunk_id(),
+                        document_id=chunk.document_id,
+                        document_name=chunk.document_name,
+                        page_number=chunk.page_number,
+                        chunk_index=chunk.chunk_index,
+                        chunk_text=chunk.chunk_text,
+                    )
+                )
+            doc.page_count = 1 if pages else 0
+            doc.status = "parsed"
+        except Exception:
             doc.status = "parse_failed"
 
     db.flush()

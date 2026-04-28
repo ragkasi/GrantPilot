@@ -30,8 +30,12 @@ export function ScoreRing({ score, label, color }: ScoreRingProps) {
 
   return (
     <div className="flex flex-col items-center gap-2.5">
-      <div className="relative w-24 h-24">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 84 84">
+      <div
+        className="relative w-24 h-24"
+        role="img"
+        aria-label={`${label}: ${score} out of 100`}
+      >
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 84 84" aria-hidden="true">
           <circle
             cx="42" cy="42" r={radius}
             fill="none" stroke={c.track} strokeWidth={strokeWidth}
@@ -45,11 +49,11 @@ export function ScoreRing({ score, label, color }: ScoreRingProps) {
             className="transition-all duration-500"
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
           <span className={cn("text-2xl font-bold", c.text)}>{score}</span>
         </div>
       </div>
-      <div className="text-center">
+      <div className="text-center" aria-hidden="true">
         <p className="text-sm font-semibold text-gray-700">{label}</p>
         <p className={cn("text-xs", c.sub)}>out of 100</p>
       </div>

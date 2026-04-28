@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Calendar, ArrowLeft, LogOut, Loader2, AlertCircle, KeyRound, CheckCircle2 } from "lucide-react";
+import { User, Calendar, ArrowLeft, LogOut, Loader2, AlertCircle, KeyRound, CheckCircle2, ExternalLink, Code2 } from "lucide-react";
 import { ApiError, changePassword, getMe, listOrganizations, listProjects } from "@/lib/api";
 import { clearToken } from "@/lib/auth";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -12,6 +12,7 @@ interface UserInfo {
   id: string;
   email: string;
   created_at: string;
+  is_demo: boolean;
 }
 
 interface Stats {
@@ -175,78 +176,111 @@ export default function AccountPage() {
           {/* Change password */}
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-gray-400" />
+              <KeyRound className="w-4 h-4 text-gray-400" aria-hidden="true" />
               Change Password
             </h2>
-            <p className="text-xs text-gray-400 mb-4">
-              Your new password must be at least 8 characters.
+
+            {user.is_demo ? (
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-3">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-sm text-amber-800">
+                  Password changes are disabled for the demo account. Sign up for your own account to manage credentials.
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400 mb-4">
+                  Your new password must be at least 8 characters.
+                </p>
+
+                {pwSuccess && (
+                  <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    Password changed successfully.
+                  </div>
+                )}
+                {pwError && (
+                  <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+                    {pwError}
+                  </p>
+                )}
+
+                <form onSubmit={handleChangePassword} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Current Password
+                    </label>
+                    <input
+                      name="current_password"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      New Password
+                    </label>
+                    <input
+                      name="new_password"
+                      type="password"
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Confirm New Password
+                    </label>
+                    <input
+                      name="confirm_password"
+                      type="password"
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="pt-1">
+                    <button
+                      type="submit"
+                      disabled={pwSaving}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+                    >
+                      {pwSaving ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Saving…</>
+                      ) : (
+                        "Update Password"
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+
+          {/* API Docs */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-gray-400" aria-hidden="true" />
+              Developer
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Explore the REST API with interactive documentation generated from the OpenAPI spec.
             </p>
-
-            {pwSuccess && (
-              <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                Password changed successfully.
-              </div>
-            )}
-            {pwError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
-                {pwError}
-              </p>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Current Password
-                </label>
-                <input
-                  name="current_password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  New Password
-                </label>
-                <input
-                  name="new_password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  name="confirm_password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={pwSaving}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-                >
-                  {pwSaving ? (
-                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
-                  ) : (
-                    "Update Password"
-                  )}
-                </button>
-              </div>
-            </form>
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/docs`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="View API documentation (opens in new tab)"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" aria-hidden="true" />
+              View API Docs
+            </a>
           </div>
 
           {/* Sign out */}

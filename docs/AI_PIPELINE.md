@@ -37,6 +37,21 @@ Each evidence match should include:
 - confidence
 - explanation
 
+## Analysis Provenance
+
+Every completed analysis records an `analysis_source` value on the `ReadinessReport` row and in API responses:
+
+| Value | Meaning |
+|---|---|
+| `real_pipeline` | Claude extracted requirements, matched evidence, and scored — based on your uploaded documents. |
+| `fallback_mock` | Pre-built BrightPath demo data was used instead. Check `fallback_reason` in the response for the specific cause (e.g. missing Grant Opportunity Document, missing `ANTHROPIC_API_KEY`). |
+| `seeded_demo` | Pre-loaded demo project created at startup — not based on real uploaded documents. |
+
+The UI surfaces this as a provenance banner above the score cards. To trigger `real_pipeline`:
+1. Upload a **Grant Opportunity Document** (type: `grant_opportunity`).
+2. Set `ANTHROPIC_API_KEY` in the backend environment.
+3. Re-run analysis via the Analyze button.
+
 ## Risk Flag Types
 
 - Missing required document

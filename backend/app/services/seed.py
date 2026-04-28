@@ -74,10 +74,19 @@ def seed_demo(db: Session) -> None:
 
     db.flush()
 
-    # 4. Ensure analysis exists
-    if (
+    # 4. Ensure analysis exists and is marked as a seeded demo
+    report = (
         db.query(ReadinessReport)
         .filter(ReadinessReport.project_id == DEMO_PROJECT_ID)
         .first()
-    ) is None:
+    )
+    if report is None:
         analysis_service.run_analysis(DEMO_PROJECT_ID, db)
+        report = (
+            db.query(ReadinessReport)
+            .filter(ReadinessReport.project_id == DEMO_PROJECT_ID)
+            .first()
+        )
+    if report is not None and report.analysis_source != "seeded_demo":
+        report.analysis_source = "seeded_demo"
+        report.fallback_reason = None

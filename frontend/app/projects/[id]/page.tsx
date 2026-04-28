@@ -17,6 +17,7 @@ import {
   XCircle,
   AlertTriangle,
   Pencil,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ import { ScoreRing } from "@/components/project/score-ring";
 import { RequirementsTable } from "@/components/project/requirements-table";
 import { DraftAnswersPanel } from "@/components/project/draft-answers-panel";
 import { RiskPanel } from "@/components/project/risk-panel";
+import { ProvenanceBanner } from "@/components/project/provenance-banner";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -221,12 +223,10 @@ export default function ProjectPage() {
   }
 
   async function handleRunAnalysis() {
-    if (state.phase !== "upload") return;
-    setState((prev) =>
-      prev.phase === "upload"
-        ? { phase: "analyzing", project: prev.project, org: prev.org, documents: prev.documents }
-        : prev,
-    );
+    const cur = state;
+    if (cur.phase !== "upload" && cur.phase !== "ready") return;
+    const { project, org, documents } = cur;
+    setState({ phase: "analyzing", project, org, documents });
     try {
       await runAnalysis(projectId);
       await loadProject();
@@ -392,7 +392,7 @@ export default function ProjectPage() {
           />
         )}
 
-        <div className="px-8 py-6 max-w-4xl mx-auto space-y-5">
+        <div className="px-4 sm:px-8 py-6 max-w-4xl mx-auto space-y-5">
           {/* Upload card */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
@@ -545,9 +545,16 @@ export default function ProjectPage() {
         />
       )}
 
-      <div className="px-8 py-6 max-w-7xl mx-auto">
+      <div className="px-4 sm:px-8 py-6 max-w-7xl mx-auto">
+        <ProvenanceBanner
+          analysisSource={analysis.analysis_source}
+          fallbackReason={analysis.fallback_reason}
+          onUploadMore={() => setState({ phase: "upload", project, org, documents })}
+          onReanalyze={handleRunAnalysis}
+        />
+
         {/* Score summary */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" role="region" aria-label="Analysis scores">
           <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center">
             <ScoreRing score={eligibility_score} label="Eligibility Score" color="indigo" />
           </div>
@@ -607,19 +614,32 @@ export default function ProjectPage() {
         )}
 
         {/* Bottom bar */}
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 flex items-center justify-between">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-indigo-900">Ready to strengthen your application?</p>
             <p className="text-sm text-indigo-700 mt-0.5">
-              Upload the {requiredMissingCount} missing required documents to improve your readiness score.
+              {requiredMissingCount > 0
+                ? `Upload ${requiredMissingCount} missing required document${requiredMissingCount === 1 ? "" : "s"}, then Re-analyze to refresh your results.`
+                : "Upload additional documents and Re-analyze to update your results."}
             </p>
           </div>
-          <button
-            onClick={() => setState({ phase: "upload", project, org, documents })}
-            className="shrink-0 px-4 py-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors"
-          >
-            Upload More Documents
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={handleRunAnalysis}
+              aria-label="Re-run analysis on current documents"
+              className="px-4 py-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              Re-analyze
+            </button>
+            <button
+              onClick={() => setState({ phase: "upload", project, org, documents })}
+              aria-label="Go to document upload panel"
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Upload More Documents
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -784,13 +804,15 @@ function PageHeader({
               {onEdit && (
                 <button
                   onClick={onEdit}
+                  aria-label={isEditing ? "Close edit form" : "Edit project details"}
+                  aria-pressed={isEditing}
                   className={cn(
                     "p-1 rounded transition-colors",
                     isEditing ? "text-indigo-600 bg-indigo-50" : "text-gray-300 hover:text-gray-600 hover:bg-gray-50",
                   )}
                   title="Edit project details"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -835,10 +857,11 @@ function PageHeader({
               ) : (
                 <button
                   onClick={onDelete}
+                  aria-label="Delete this project"
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:text-red-500 transition-colors"
                   title="Delete project"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   Delete
                 </button>
               )

@@ -64,6 +64,10 @@ class ReadinessReport(Base):
     requirements: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     draft_answers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     report_pdf_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Provenance — tracks whether this came from the real AI pipeline or a fallback.
+    # Values: "real_pipeline" | "fallback_mock" | "seeded_demo" | None (legacy rows)
+    analysis_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    fallback_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

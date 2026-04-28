@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Plus, ArrowRight, FileText, Building2, Clock, Loader2,
-  AlertCircle, FolderOpen, Zap,
+  AlertCircle, FolderOpen, Zap, Trash2,
 } from "lucide-react";
-import { ApiError, getAnalysisSummary, listOrganizations, listProjects } from "@/lib/api";
+import { ApiError, deleteOrganization, getAnalysisSummary, listOrganizations, listProjects } from "@/lib/api";
 import type { AnalysisSummary, Organization, Project } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -28,6 +28,23 @@ const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
 export default function DashboardPage() {
   useDocumentTitle("Dashboard");
   const [state, setState] = useState<LoadState>({ phase: "loading" });
+  const [deletingOrgId, setDeletingOrgId] = useState<string | null>(null);
+
+  async function handleDeleteOrg(orgId: string) {
+    if (deletingOrgId !== orgId) {
+      setDeletingOrgId(orgId);
+      return;
+    }
+    try {
+      await deleteOrganization(orgId);
+      setDeletingOrgId(null);
+      setState({ phase: "loading" });
+      const [orgs, projects] = await Promise.all([listOrganizations(), listProjects()]);
+      setState({ phase: "ready", orgs, projects, scores: new Map() });
+    } catch {
+      setDeletingOrgId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -213,6 +230,33 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-400">{orgProjects.length} project{orgProjects.length !== 1 ? "s" : ""}</span>
                     <span className="text-xs font-medium bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full">Active</span>
+                    {deletingOrgId === org.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-600">Delete org and all projects?</span>
+                        <button
+                          onClick={() => handleDeleteOrg(org.id)}
+                          className="text-xs font-medium text-red-600 hover:text-red-800"
+                          aria-label={`Confirm delete organization ${org.name}`}
+                        >
+                          Yes, delete
+                        </button>
+                        <button
+                          onClick={() => setDeletingOrgId(null)}
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDeleteOrg(org.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors"
+                        aria-label={`Delete organization ${org.name}`}
+                        title="Delete organization"
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

@@ -64,6 +64,17 @@ Thumbs.db
 *~
 
 # -----------------------------------------------------------------------
+# Claude Code — local settings contain permitted bash commands which may
+# embed credentials; only the shared config belongs in version control
+# -----------------------------------------------------------------------
+.claude/settings.local.json
+
+# -----------------------------------------------------------------------
+# TypeScript build cache
+# -----------------------------------------------------------------------
+frontend/tsconfig.tsbuildinfo
+
+# -----------------------------------------------------------------------
 # Root-level .env (docker-compose secrets)
 # -----------------------------------------------------------------------
 .env

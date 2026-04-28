@@ -417,6 +417,9 @@ def generate_readiness_checklist(project_id: str) -> str:
             "deadline": project.deadline,
             "eligibility_score": report.eligibility_score,
             "readiness_score": report.readiness_score,
+            # Provenance — lets the agent know whether results are AI-generated or sample data
+            "analysis_source": report.analysis_source,
+            "fallback_reason": report.fallback_reason,
             "requirements_summary": {
                 "total": len(reqs),
                 "satisfied": status_counts["satisfied"],
@@ -495,19 +498,17 @@ def generate_packet(project_id: str) -> str:
                 "Run POST /projects/{id}/analyze first."
             )
 
-        # Use cached PDF if it exists on disk
+        # Use cached PDF if it still exists on disk
         storage_url = report.report_pdf_url
-        if storage_url:
-            pdf_path = storage_service.get_file_path(storage_url)
-            if not pdf_path.exists():
-                storage_url = None  # stale — regenerate
+        if storage_url and not storage_service.file_exists(storage_url):
+            storage_url = None  # stale — regenerate
 
         if not storage_url:
             storage_url = report_generator.generate_and_save(db, project_id)
             db.commit()
 
         pdf_path = storage_service.get_file_path(storage_url)
-        file_size = pdf_path.stat().st_size if pdf_path.exists() else 0
+        file_size = pdf_path.stat().st_size if storage_service.file_exists(storage_url) else 0
 
         missing_count = len([
             m for m in (report.missing_items or []) if m.get("required", False)

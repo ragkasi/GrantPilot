@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -63,6 +63,20 @@ def get_organization(
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
+
+
+@router.delete("/{org_id}", status_code=204)
+def delete_organization(
+    org_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Delete an organization and all its projects, documents, and analysis data.
+    Only the owning user can delete their organization.
+    """
+    require_org_access(db, org_id, current_user)
+    organization_service.delete_organization(db, org_id)
+    return Response(status_code=204)
 
 
 @router.get("/{org_id}/projects", response_model=list[ProjectResponse])

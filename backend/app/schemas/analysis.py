@@ -19,6 +19,9 @@ RequirementStatus = Literal["satisfied", "partially_satisfied", "not_satisfied",
 
 RiskSeverity = Literal["high", "medium", "low"]
 
+# Source of a completed analysis result.
+AnalysisSource = Literal["real_pipeline", "fallback_mock", "seeded_demo"]
+
 
 class Citation(BaseModel):
     document_name: str
@@ -57,6 +60,16 @@ class DraftAnswer(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
 
 
+class AnalysisDiagnostics(BaseModel):
+    """Safe, user-appropriate pipeline diagnostics — no secrets or raw prompts."""
+    uploaded_doc_count: int
+    parsed_doc_count: int
+    chunk_count: int
+    grant_opportunity_found: bool
+    extracted_requirement_count: int
+    embeddings_generated: bool
+
+
 class AnalysisResponse(BaseModel):
     project_id: str
     eligibility_score: int = Field(..., ge=0, le=100)
@@ -65,6 +78,10 @@ class AnalysisResponse(BaseModel):
     missing_documents: list[MissingDocument]
     risk_flags: list[RiskFlag]
     draft_answers: list[DraftAnswer]
+    # Provenance — tells the caller (and UI) how this analysis was produced.
+    analysis_source: AnalysisSource | None = None
+    fallback_reason: str | None = None
+    diagnostics: AnalysisDiagnostics | None = None
 
 
 class AnalysisSummary(BaseModel):
@@ -76,12 +93,15 @@ class AnalysisSummary(BaseModel):
     satisfied_count: int
     missing_doc_count: int
     high_risk_count: int
+    analysis_source: AnalysisSource | None = None
 
 
 class AnalyzeResponse(BaseModel):
     """Returned immediately when analysis is triggered."""
     project_id: str
     status: str
+    analysis_source: AnalysisSource | None = None
+    fallback_reason: str | None = None
 
 
 class ReportResponse(BaseModel):
